@@ -8,26 +8,127 @@
 </head>
 <body class="mm-font-leggibile" data-theme="chiaro">
   <header id="toolbar" class="toolbar" role="toolbar" aria-label="Strumenti">
-    <span class="app-name">🧠 Mappe Mentali</span>
-    <!-- I pulsanti verranno aggiunti nella Tappa 2 (js/ui.js) -->
+    <span class="app-name" aria-hidden="true">🧠</span>
+    <h1 id="map-title" class="map-title" title="Titolo della mappa (è il testo del nodo centrale)">Mappe Mentali</h1>
+
+    <div class="tool-group" role="group" aria-label="File">
+      <button type="button" data-action="nuova" title="Nuova mappa">📄 <span>Nuova</span></button>
+      <button type="button" data-action="apri" title="Le mie mappe">📂 <span>Apri</span></button>
+      <button type="button" data-action="importa" title="Importa un file .mappa.json">📥 <span>Importa</span></button>
+      <div class="menu">
+        <button type="button" data-menu="menu-esporta" aria-haspopup="true" aria-expanded="false" title="Esporta">📤 <span>Esporta ▾</span></button>
+        <div id="menu-esporta" class="menu-list" role="menu" hidden>
+          <button type="button" role="menuitem" data-action="esporta-json">💾 File mappa (.mappa.json)</button>
+          <button type="button" role="menuitem" data-action="esporta-png" data-needs="exporter">🖼️ Immagine PNG</button>
+          <button type="button" role="menuitem" data-action="esporta-svg" data-needs="exporter">✏️ Immagine SVG</button>
+          <button type="button" role="menuitem" data-action="stampa" data-needs="exporter">🖨️ Stampa / PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Modifica">
+      <button type="button" data-action="annulla" title="Annulla (Ctrl/Cmd+Z)">↩️ <span>Annulla</span></button>
+      <button type="button" data-action="ripristina" title="Ripristina (Ctrl/Cmd+Maiusc+Z)">↪️ <span>Ripristina</span></button>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Nodi">
+      <button type="button" data-action="figlio" title="Nuova idea collegata (Tab)">➕ <span>Figlio</span></button>
+      <button type="button" data-action="fratello" title="Nuova idea allo stesso livello (Invio)">⤵️ <span>Fratello</span></button>
+      <button type="button" data-action="collega" title="Collega due nodi (L)" aria-pressed="false">🔗 <span>Collega</span></button>
+      <button type="button" data-action="elimina" title="Elimina (Canc)">🗑️ <span>Elimina</span></button>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Vista">
+      <div class="menu">
+        <button type="button" data-menu="menu-layout" aria-haspopup="true" aria-expanded="false" title="Disposizione automatica">🔀 <span>Layout ▾</span></button>
+        <div id="menu-layout" class="menu-list" role="menu" hidden>
+          <button type="button" role="menuitemradio" data-action="layout-radial" aria-checked="false">🌞 Mappa mentale (a raggiera)</button>
+          <button type="button" role="menuitemradio" data-action="layout-tree" aria-checked="false">🌳 Schema ad albero</button>
+          <button type="button" role="menuitem" data-action="riordina">✨ Riordina i nodi</button>
+        </div>
+      </div>
+      <button type="button" data-action="zoom-meno" title="Rimpicciolisci (−)" aria-label="Rimpicciolisci">➖</button>
+      <span id="zoom-level" class="zoom-level">100%</span>
+      <button type="button" data-action="zoom-piu" title="Ingrandisci (+)" aria-label="Ingrandisci">➕</button>
+      <button type="button" data-action="adatta" title="Adatta allo schermo (Ctrl/Cmd+0)">🔍 <span>Adatta</span></button>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Aiuti">
+      <button type="button" data-action="aiuto" title="Aiuto e scorciatoie">❓ <span>Aiuto</span></button>
+    </div>
+    <input type="file" id="file-input" accept=".json,application/json" hidden>
   </header>
 
   <main class="workspace">
-    <svg id="canvas" class="canvas" role="tree" aria-label="Mappa mentale" tabindex="0">
+    <svg id="canvas" class="canvas" role="tree" aria-label="Mappa mentale: Tab aggiunge un'idea, le frecce spostano la selezione" tabindex="0">
       <defs></defs>
       <g id="world"></g>
     </svg>
     <aside id="properties" class="properties" aria-label="Proprietà"></aside>
   </main>
 
-  <p id="avviso-sviluppo" class="avviso">
-    App in costruzione: la logica è pronta, l'interfaccia arriva nella Tappa 2.
-  </p>
+  <!-- Finestre modali -->
+  <dialog id="dlg-mappe" class="dialog" aria-labelledby="dlg-mappe-titolo">
+    <h2 id="dlg-mappe-titolo">📂 Le mie mappe</h2>
+    <p class="dialog-hint">Le mappe sono salvate in questo browser. Per non perderle, esportale ogni tanto (Esporta → File mappa).</p>
+    <ul id="lista-mappe" class="map-list"></ul>
+    <div class="dialog-actions">
+      <button type="button" data-action="nuova">📄 Nuova mappa</button>
+      <button type="button" data-close>Chiudi</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-aiuto" class="dialog" aria-labelledby="dlg-aiuto-titolo">
+    <h2 id="dlg-aiuto-titolo">❓ Come si usa</h2>
+    <div class="help-columns">
+      <section>
+        <h3>Con il mouse o le dita</h3>
+        <ul>
+          <li><b>Clic</b> su un nodo: lo selezioni</li>
+          <li><b>Doppio clic</b> su un nodo: modifichi il testo</li>
+          <li><b>Doppio clic</b> sullo sfondo: nuova idea</li>
+          <li><b>Trascina</b> un nodo: lo sposti (con il suo ramo)</li>
+          <li><b>⌥ Alt + trascina</b> su un altro nodo: cambi il “genitore”</li>
+          <li><b>Trascina</b> lo sfondo: sposti la mappa</li>
+          <li><b>Rotella</b> o <b>pizzico</b>: zoom</li>
+          <li>Clic sul pallino <b>+N</b>: apri un ramo compresso</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Con la tastiera</h3>
+        <table class="keys">
+          <tr><td><kbd>Tab</kbd></td><td>nuova idea “figlia”</td></tr>
+          <tr><td><kbd>Invio</kbd></td><td>nuova idea allo stesso livello</td></tr>
+          <tr><td><kbd>F2</kbd> / <kbd>Spazio</kbd></td><td>modifica il testo</td></tr>
+          <tr><td><kbd>Maiusc</kbd>+<kbd>Invio</kbd></td><td>a capo mentre scrivi</td></tr>
+          <tr><td><kbd>Canc</kbd></td><td>elimina</td></tr>
+          <tr><td><kbd>←↑→↓</kbd></td><td>spostati tra i nodi</td></tr>
+          <tr><td><kbd>.</kbd></td><td>comprimi / espandi il ramo</td></tr>
+          <tr><td><kbd>L</kbd></td><td>collega due nodi</td></tr>
+          <tr><td><kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd></td><td>annulla</td></tr>
+          <tr><td><kbd>Ctrl/Cmd</kbd>+<kbd>Maiusc</kbd>+<kbd>Z</kbd></td><td>ripristina</td></tr>
+          <tr><td><kbd>Ctrl/Cmd</kbd>+<kbd>S</kbd></td><td>scarica il file della mappa</td></tr>
+          <tr><td><kbd>+</kbd> / <kbd>−</kbd> / <kbd>Ctrl/Cmd</kbd>+<kbd>0</kbd></td><td>zoom / adatta</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>annulla l'operazione</td></tr>
+        </table>
+      </section>
+    </div>
+    <p class="dialog-hint">💾 Il lavoro viene salvato da solo mentre scrivi.</p>
+    <div class="dialog-actions"><button type="button" data-close>Ho capito</button></div>
+  </dialog>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
   <!-- Script classici (non moduli ES) per funzionare anche aprendo il file con doppio clic. -->
   <script src="js/namespace.js" defer></script>
   <script src="js/model.js" defer></script>
   <script src="js/history.js" defer></script>
+  <script src="js/storage.js" defer></script>
   <script src="js/layout.js" defer></script>
+  <script src="js/viewport.js" defer></script>
+  <script src="js/renderer.js" defer></script>
+  <script src="js/interactions.js" defer></script>
+  <script src="js/ui.js" defer></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>

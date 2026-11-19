@@ -17,10 +17,11 @@
   <h1>Test automatici – Mappe Mentali</h1>
   <div id="risultati">Esecuzione dei test in corso…</div>
 
-  <!-- Moduli dell'app (solo logica pura) -->
+  <!-- Moduli dell'app (logica pura; storage usa un backend in memoria nei test) -->
   <script src="../js/namespace.js"></script>
   <script src="../js/model.js"></script>
   <script src="../js/history.js"></script>
+  <script src="../js/storage.js"></script>
   <script src="../js/layout.js"></script>
 
   <!-- Framework e test -->
@@ -28,6 +29,7 @@
   <script src="model.test.js"></script>
   <script src="history.test.js"></script>
   <script src="layout.test.js"></script>
+  <script src="storage.test.js"></script>
   <script>MMTest.run();</script>
 </body>
 </html>
