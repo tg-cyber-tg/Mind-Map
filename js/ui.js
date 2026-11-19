@@ -40,8 +40,12 @@
 
   /* ---------- Notifiche ---------- */
 
-  /** type: 'info' (predefinito) | 'successo' | 'avviso' | 'errore'. */
-  function toast(msg, type) {
+  /**
+   * type: 'info' (predefinito) | 'successo' | 'avviso' | 'errore'.
+   * action (facoltativa): { label, onClick, persistent } aggiunge un pulsante;
+   * con persistent la notifica resta finché non si preme il pulsante o ✕.
+   */
+  function toast(msg, type, action) {
     var box = document.getElementById('toasts');
     if (!box) return;
     var kind = type || 'info';
@@ -49,12 +53,23 @@
     var t = h('div', { 'class': 'toast toast-' + kind, role: kind === 'errore' ? 'alert' : null }, [
       h('span', { 'aria-hidden': 'true', text: icon }), h('span', { text: msg })
     ]);
-    box.appendChild(t);
-    while (box.children.length > 3) box.removeChild(box.firstChild);
-    setTimeout(function () {
+    function remove() {
       t.classList.add('toast-out');
       setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
-    }, kind === 'errore' ? 6000 : 3500);
+    }
+    if (action) {
+      t.classList.add('toast-action');
+      t.appendChild(h('button', { type: 'button', on: { click: function () { remove(); action.onClick(); } } }, [action.label]));
+      if (action.persistent) {
+        t.appendChild(h('button', { type: 'button', 'class': 'toast-close', 'aria-label': 'Chiudi', on: { click: remove } }, ['✕']));
+      }
+    }
+    box.appendChild(t);
+    // Si tengono al massimo 3 notifiche, senza togliere quelle persistenti.
+    var transient = $all('.toast:not(.toast-persistent)', box);
+    while (transient.length > 3) { var old = transient.shift(); if (old.parentNode) old.parentNode.removeChild(old); }
+    if (action && action.persistent) { t.classList.add('toast-persistent'); return; }
+    setTimeout(remove, kind === 'errore' ? 6000 : action ? 8000 : 3500);
   }
 
   /* ---------- Menu a tendina ---------- */
@@ -464,6 +479,7 @@
   }
 
   function openHelp() {
+    if (MM.pwa) MM.pwa.refreshHelp();
     openDialog(document.getElementById('dlg-aiuto'));
   }
 

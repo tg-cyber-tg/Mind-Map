@@ -437,6 +437,7 @@
     state.viewport = MM.viewport.create(svg, world);
     if (MM.ui) MM.ui.init(api);
     if (MM.interactions) MM.interactions.attach(api);
+    if (MM.pwa) MM.pwa.init(api);
 
     var start = initialMap();
     loadIntoEditor(start.map, { relayout: start.fresh });

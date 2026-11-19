@@ -387,6 +387,17 @@ kbd {
 .toast-avviso { background: #8d4b00; }
 .toast-errore { background: #b71c1c; }
 .toast-out { opacity: 0; transform: translateY(8px); }
+.toast-action { align-items: center; pointer-events: auto; }
+.toast-action button {
+  min-height: 0; padding: 0.2rem 0.7rem;
+  color: #263238; background: #ffffff; border-color: #ffffff; font-weight: bold;
+}
+.toast-action .toast-close { background: transparent; color: #ffffff; border-color: transparent; font-weight: normal; }
+
+/* Finestra Aiuto: riquadro "Usala come app". */
+.help-app { margin-top: 1rem; padding: 0.6rem 0.9rem; border: 1px solid var(--mm-border); border-radius: 10px; }
+.help-app h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+.help-app p { margin: 0 0 0.5rem; font-size: 0.9rem; }
 
 [data-theme="alto-contrasto"] .toast { background: #000; border: 2px solid #ff0; color: #ff0; }
 

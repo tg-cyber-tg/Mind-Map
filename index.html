@@ -4,6 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mappe Mentali</title>
+  <meta name="description" content="Mappe mentali e concettuali per la scuola, con lettura ad alta voce e strumenti per DSA.">
+  <meta name="theme-color" content="#1565c0">
+  <!-- Il manifest (app installabile) viene aggiunto da js/pwa.js solo da http(s): da file:// Chrome darebbe errore. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mappe">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/print.css">
 </head>
@@ -166,7 +176,14 @@
         </table>
       </section>
     </div>
-    <p class="dialog-hint">💾 Il lavoro viene salvato da solo mentre scrivi.</p>
+    <p class="dialog-hint">💾 Il lavoro viene salvato da solo mentre scrivi, in questo browser. Le mappe aperte
+      con un doppio clic sul file, quelle sul sito e quelle dell'app installata sono in archivi separati:
+      per spostarle usa Esporta → File mappa e poi Importa.</p>
+    <section class="help-app">
+      <h3>📲 Usala come app</h3>
+      <p id="pwa-stato">Per installarla come app, aprila dal suo indirizzo web.</p>
+      <button type="button" id="btn-installa" hidden>📲 Installa l'app</button>
+    </section>
     <div class="dialog-actions"><button type="button" data-close>Ho capito</button></div>
   </dialog>
 
@@ -185,6 +202,7 @@
   <script src="js/exporter.js" defer></script>
   <script src="js/interactions.js" defer></script>
   <script src="js/ui.js" defer></script>
+  <script src="js/pwa.js" defer></script>
   <script src="js/app.js" defer></script>
 </body>
 </html>
