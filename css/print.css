@@ -1,0 +1,48 @@
+/*
+ * Mappe Mentali – stampa e salvataggio in PDF.
+ * MM.exporter mette la mappa intera in #print-area (SVG con viewBox): qui si
+ * nasconde tutta l'interfaccia e la si adatta a un foglio A4 orizzontale.
+ */
+#print-area { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  html, body {
+    height: auto;
+    overflow: visible;
+    background: #ffffff !important;
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { display: block; }
+
+  /* Con la mappa preparata per la stampa si mostra solo quella. */
+  body.mm-printing > *:not(#print-area) { display: none !important; }
+  body.mm-printing #print-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 185mm; /* A4 orizzontale (210 mm) meno i margini */
+    break-inside: avoid;
+  }
+  .print-title {
+    margin: 0 0 4mm;
+    font-size: 16pt;
+    text-align: center;
+  }
+  #print-area svg {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+  }
+
+  /* Riserva (stampa senza preparazione): l'area di lavoro così com'è, senza barre. */
+  body:not(.mm-printing) .toolbar,
+  body:not(.mm-printing) .properties,
+  body:not(.mm-printing) .toasts,
+  body:not(.mm-printing) .inline-editor { display: none !important; }
+}

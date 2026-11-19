@@ -327,14 +327,23 @@
       return;
     }
     if (!MM.exporter) { toast('Esportazione non ancora disponibile', 'avviso'); return; }
-    if (kind === 'print') { MM.exporter.print(api); return; }
-    if (kind === 'svg') {
-      MM.storage.downloadFile(name + '.svg', MM.exporter.toSVGString(state.map, state.renderer), 'image/svg+xml');
+    if (state.mode === 'modifica' && MM.interactions) MM.interactions.commitInlineEdit();
+    try {
+      if (kind === 'print') { MM.exporter.print(api); return; }
+      if (kind === 'svg') {
+        MM.storage.downloadFile(name + '.svg', MM.exporter.toSVGString(state.map, state.renderer), 'image/svg+xml');
+        toast('Immagine "' + name + '.svg" scaricata', 'successo');
+        return;
+      }
+    } catch (e) {
+      toast(e.message, 'errore');
       return;
     }
     if (kind === 'png') {
+      toast('Preparo l\'immagine…');
       MM.exporter.toPNG(state.map, state.renderer, 2).then(function (blob) {
         MM.storage.downloadFile(name + '.png', blob, 'image/png');
+        toast('Immagine "' + name + '.png" scaricata', 'successo');
       }).catch(function (e) { toast(e.message, 'errore'); });
     }
   }
