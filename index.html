@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mappe Mentali</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="mm-font-leggibile" data-theme="chiaro">
+  <header id="toolbar" class="toolbar" role="toolbar" aria-label="Strumenti">
+    <span class="app-name">🧠 Mappe Mentali</span>
+    <!-- I pulsanti verranno aggiunti nella Tappa 2 (js/ui.js) -->
+  </header>
+
+  <main class="workspace">
+    <svg id="canvas" class="canvas" role="tree" aria-label="Mappa mentale" tabindex="0">
+      <defs></defs>
+      <g id="world"></g>
+    </svg>
+    <aside id="properties" class="properties" aria-label="Proprietà"></aside>
+  </main>
+
+  <p id="avviso-sviluppo" class="avviso">
+    App in costruzione: la logica è pronta, l'interfaccia arriva nella Tappa 2.
+  </p>
+
+  <!-- Script classici (non moduli ES) per funzionare anche aprendo il file con doppio clic. -->
+  <script src="js/namespace.js" defer></script>
+  <script src="js/model.js" defer></script>
+  <script src="js/history.js" defer></script>
+  <script src="js/layout.js" defer></script>
+</body>
+</html>

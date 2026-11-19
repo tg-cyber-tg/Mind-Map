@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Test – Mappe Mentali</title>
+  <style>
+    body { font-family: Verdana, Tahoma, Arial, sans-serif; margin: 2rem; line-height: 1.5; }
+    h2.pass { color: #1b5e20; }
+    h2.fail { color: #b71c1c; }
+    li { list-style: none; margin: 0.2rem 0; }
+    li.pass { color: #2e7d32; }
+    li.fail { color: #c62828; font-weight: bold; }
+    pre { background: #ffebee; padding: 0.5rem; white-space: pre-wrap; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <h1>Test automatici – Mappe Mentali</h1>
+  <div id="risultati">Esecuzione dei test in corso…</div>
+
+  <!-- Moduli dell'app (solo logica pura) -->
+  <script src="../js/namespace.js"></script>
+  <script src="../js/model.js"></script>
+  <script src="../js/history.js"></script>
+  <script src="../js/layout.js"></script>
+
+  <!-- Framework e test -->
+  <script src="runner.js"></script>
+  <script src="model.test.js"></script>
+  <script src="history.test.js"></script>
+  <script src="layout.test.js"></script>
+  <script>MMTest.run();</script>
+</body>
+</html>
