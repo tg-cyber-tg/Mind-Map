@@ -17,8 +17,9 @@ Ambito della prima versione (MVP):
 - Accessibilità DSA: font ad alta leggibilità (Verdana/Tahoma di sistema, spaziatura aumentata), opzione "TUTTO MAIUSCOLO" (stampato maiuscolo), dimensione del testo regolabile, tema ad alto contrasto, **lettura ad alta voce** del nodo o dell'intera mappa con la Web Speech API (voce italiana `it-IT`).
 - Modelli pronti (es. "Riassunto capitolo", "Personaggio storico", "Processo scientifico", "Analisi del testo", "Confronto").
 - Interfaccia interamente in italiano, utilizzabile da tastiera (Tab = figlio, Invio = fratello, Canc = elimina, frecce = navigazione).
+- App installabile (PWA): quando è pubblicata su un indirizzo web (GitHub Pages) o servita da `localhost`, il browser propone "Installa app". Si ottengono icona nel Dock / schermata Home, finestra propria e funzionamento offline. Aperta con doppio clic (`file://`) l'app funziona come prima: le parti PWA si disattivano da sole.
 
-Fuori ambito (possibili sviluppi futuri): collaborazione in tempo reale, account utente, sincronizzazione cloud, immagini caricate dentro i nodi, dettatura vocale.
+Fuori ambito (possibili sviluppi futuri): collaborazione in tempo reale, account utente, sincronizzazione cloud, immagini caricate dentro i nodi, dettatura vocale, app nativa (.app per Mac o App Store: richiederebbe Electron/Tauri, quindi Node o Rust, e un account sviluppatore Apple).
 
 [Types]
 Strutture dati in JavaScript puro, documentate con JSDoc in `js/model.js`.
@@ -109,9 +110,16 @@ Nuovi file:
 - `mappe-mentali/tests/index.html` – carica i moduli puri + i test e li esegue nel browser.
 - `mappe-mentali/tests/runner.js` – mini framework di test (`describe`, `it`, `assert.*`) con report HTML.
 - `mappe-mentali/tests/model.test.js`, `history.test.js`, `layout.test.js`, `storage.test.js`, `templates.test.js`.
-- `mappe-mentali/README.md` – istruzioni in italiano (apertura, scorciatoie, salvataggio/backup, pubblicazione opzionale su GitHub Pages, checklist di verifica manuale).
+- `mappe-mentali/README.md` – istruzioni in italiano (apertura, scorciatoie, salvataggio/backup, pubblicazione su GitHub Pages, installazione come app su Mac/iPad/Chrome, checklist di verifica manuale).
+- `mappe-mentali/manifest.webmanifest` – descrizione dell'app installabile: `name` "Mappe Mentali", `short_name` "Mappe", `lang` "it", `start_url` e `scope` "./" (percorsi relativi, così funziona anche in una sottocartella di GitHub Pages), `display` "standalone", `background_color`/`theme_color` coerenti con il tema chiaro, icone 192 e 512 px (anche `purpose: "maskable"`).
+- `mappe-mentali/sw.js` – service worker nella radice del progetto (il suo `scope` deve coprire tutta l'app). Costante `CACHE_VERSION` (es. `"mm-v1"`) ed elenco `PRECACHE` di tutti i file dell'app; `install` → precarica; `activate` → elimina le cache delle versioni precedenti; `fetch` → prima la cache, poi la rete (solo richieste GET della stessa origine). Ad ogni rilascio si incrementa `CACHE_VERSION`.
+- `mappe-mentali/js/pwa.js` (`MM.pwa`) – registrazione del service worker e aggiornamenti (vedi [Functions]).
+- `mappe-mentali/icons/icon.svg` – icona sorgente (cervello/mappa su fondo colorato); `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable-512.png` (margine di sicurezza del 20%), `icons/apple-touch-icon.png` (180 px, per iPad/iPhone). I PNG si generano dall'SVG con Chrome headless (`--screenshot`), senza strumenti aggiuntivi.
+- `mappe-mentali/tests/controlla-pwa.sh` – controllo statico: ogni file elencato in `PRECACHE` esiste, ogni script/foglio di stile di `index.html` è in `PRECACHE`, le icone del manifest esistono, il manifest è JSON valido.
 
-Ordine di caricamento degli script in `index.html` (tutti `<script src>` classici, con `defer`): `namespace.js`, `model.js`, `history.js`, `storage.js`, `layout.js`, `viewport.js`, `renderer.js`, `speech.js`, `templates.js`, `exporter.js`, `interactions.js`, `ui.js`, `app.js`.
+Ordine di caricamento degli script in `index.html` (tutti `<script src>` classici, con `defer`): `namespace.js`, `model.js`, `history.js`, `storage.js`, `layout.js`, `viewport.js`, `renderer.js`, `speech.js`, `templates.js`, `exporter.js`, `interactions.js`, `ui.js`, `pwa.js`, `app.js`.
+
+Nota su `file://`: Chrome blocca il caricamento del manifest e la registrazione del service worker da `file://` (con errori in console). Per questo il `<link rel="manifest">` non è scritto in `index.html` ma viene aggiunto da `MM.pwa` solo se `location.protocol` è `http:` o `https:`. `<link rel="apple-touch-icon">` e `<meta name="theme-color">` invece sono statici e innocui.
 
 File esistenti da modificare/eliminare/spostare: nessuno (progetto nuovo). Nessuna configurazione di build.
 
@@ -183,6 +191,12 @@ Tutte le funzioni sono nuove ed esposte nei sotto-namespace di `MM`. I moduli pu
 - `renderProperties(map, selection)` – testo, nota, palette, forma, emoji (~40 scolastiche), etichetta collegamento.
 - `openMapList()`, `openTemplates()`, `openHelp()`, `openSettings()`, `toast(msg, type)`, `updateToolbarState(app)`, `setTitle(title)`.
 
+`js/pwa.js` (`MM.pwa`):
+- `isSupported(): boolean` – `true` solo con `http:`/`https:` (o `localhost`) e `'serviceWorker' in navigator`.
+- `init(app)` – se supportato: aggiunge `<link rel="manifest">`, registra `sw.js`; quando un nuovo service worker è pronto mostra la notifica "È disponibile una nuova versione" con il pulsante "Aggiorna" (`skipWaiting` + ricarica, dopo `app.saveNow()`).
+- `isInstalled(): boolean` – `display-mode: standalone` (o `navigator.standalone` su iPad).
+- `promptInstall()` – su Chrome/Edge usa l'evento `beforeinstallprompt` (pulsante "📲 Installa" nella finestra Aiuto, visibile solo quando disponibile); su Safari mostra le istruzioni (Mac: File → Aggiungi al Dock; iPad: Condividi → Aggiungi alla schermata Home).
+
 `js/app.js` (`MM.app`):
 - Stato: `{ map, history, selectedId, selectedLinkId, mode: 'normale'|'collegamento'|'modifica', renderer, viewport }`.
 - `init()` – apre l'ultima mappa o crea il modello `vuota`; collega i moduli; primo render + `fitTo`.
@@ -196,7 +210,9 @@ Nessuna classe ES6: per coerenza con l'approccio a funzioni pure si usano **funz
 
 [Dependencies]
 Nessuna dipendenza esterna: niente npm, CDN o font scaricati; l'app funziona offline.
-API del browser: SVG, Pointer Events, `localStorage`, `Blob`/`URL.createObjectURL`, `FileReader`, `canvas.toBlob`, `<dialog>`, `speechSynthesis`. Browser: versioni recenti di Chrome, Edge, Firefox, Safari (anche iPad). Font "leggibile": `Verdana, Tahoma, "Trebuchet MS", Arial, sans-serif` con `letter-spacing: 0.05em` e `word-spacing: 0.15em` (OpenDyslexic locale come sviluppo futuro).
+API del browser: SVG, Pointer Events, `localStorage`, `Blob`/`URL.createObjectURL`, `FileReader`, `canvas.toBlob`, `<dialog>`, `speechSynthesis`, Service Worker + Cache Storage, Web App Manifest. Browser: versioni recenti di Chrome, Edge, Firefox, Safari (anche iPad). Font "leggibile": `Verdana, Tahoma, "Trebuchet MS", Arial, sans-serif` con `letter-spacing: 0.05em` e `word-spacing: 0.15em` (OpenDyslexic locale come sviluppo futuro).
+Archiviazione e PWA: `localStorage` è separato per indirizzo. Le mappe create aprendo il file con doppio clic (`file://`), quelle su `localhost` e quelle sull'app pubblicata/installata sono in archivi diversi: si spostano con Esporta → File mappa e Importa (da spiegare chiaramente nel README e nella finestra Aiuto). Su Safari/iPad i dati di un sito non visitato per molto tempo possono essere cancellati: l'app installata sulla schermata Home ne è esente, ma il backup con Esporta resta consigliato.
+Pubblicazione: GitHub Pages richiede un account GitHub gratuito e un repository remoto; il `git push` lo esegue l'utente (nessuna credenziale nel progetto).
 Strumenti: solo Python 3 per un server statico opzionale (`python3 -m http.server 8000`).
 
 [Testing]
@@ -208,7 +224,8 @@ Test automatici nel browser, senza dipendenze: si apre `tests/index.html` (oppur
 - `tests/storage.test.js` (backend in memoria): salva/elenca/ordina/carica/elimina/duplica; serialize→deserialize senza perdite; JSON non valido o versione errata → errore in italiano; QuotaExceeded simulato.
 - `tests/templates.test.js`: ogni modello supera `validate`.
 
-Verifica manuale (checklist nel README): doppio clic su `index.html` in Chrome e Safari; creazione nodi da tastiera e mouse; trascinamento e zoom da trackpad; collegamento con etichetta; annulla/ripristina; ricarica pagina → mappa ripristinata; esporta e reimporta JSON; PNG nitido; anteprima di stampa su un A4; lettura vocale in italiano; tema alto contrasto e maiuscolo; uso su iPad (touch).
+Verifica manuale (checklist nel README): doppio clic su `index.html` in Chrome e Safari; creazione nodi da tastiera e mouse; trascinamento e zoom da trackpad; collegamento con etichetta; annulla/ripristina; ricarica pagina → mappa ripristinata; esporta e reimporta JSON; PNG nitido; anteprima di stampa su un A4; lettura vocale in italiano; tema alto contrasto e maiuscolo; uso su iPad (touch); app installata (Chrome "Installa app", Safari "Aggiungi al Dock", iPad "Aggiungi alla schermata Home") che si apre in una finestra propria e funziona senza internet.
+- `tests/controlla-pwa.sh`: coerenza tra `sw.js`, `index.html`, manifest e icone (vedi [Files]).
 
 [Implementation Order]
 1. Creare la struttura delle cartelle, `js/namespace.js`, lo scheletro di `index.html` e `css/style.css` di base.
@@ -223,7 +240,8 @@ Verifica manuale (checklist nel README): doppio clic su `index.html` in Chrome e
 10. Implementare `js/templates.js` con i test e la finestra dei modelli.
 11. Implementare `js/exporter.js` (SVG, PNG) e `css/print.css` (stampa/PDF).
 12. Implementare `js/speech.js` e le impostazioni di accessibilità (temi, maiuscolo, dimensione e tipo di carattere).
-13. Scrivere `README.md` in italiano; eseguire tutti i test e la checklist manuale; correggere i problemi.
+13. Rendere l'app installabile (PWA): icone (SVG → PNG con Chrome headless), `manifest.webmanifest`, `sw.js`, `js/pwa.js`, `tests/controlla-pwa.sh`. Verifica con `python3 -m http.server 8000` su `http://localhost:8000` (contesto sicuro): installazione in Chrome, funzionamento offline (server spento), notifica di aggiornamento dopo aver cambiato `CACHE_VERSION`; verifica che con doppio clic su `index.html` non compaiano errori in console.
+14. Scrivere `README.md` in italiano (incluse pubblicazione su GitHub Pages e installazione su Mac/iPad/Chrome); eseguire tutti i test e la checklist manuale; correggere i problemi.
 
 
 
