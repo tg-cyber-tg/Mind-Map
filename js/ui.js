@@ -103,6 +103,7 @@
     switch (action) {
       case 'nuova': closeDialogs(); app.newMap('vuota'); break;
       case 'apri': openMapList(); break;
+      case 'modelli': openTemplates(); break;
       case 'importa': document.getElementById('file-input').click(); break;
       case 'esporta-json': app.saveNow(); app.exportAs('json'); break;
       case 'esporta-png': app.exportAs('png'); break;
@@ -124,7 +125,7 @@
       default: return;
     }
     // Dopo un'azione sulla mappa il focus torna all'area di lavoro (tastiera pronta).
-    if (['apri', 'importa', 'aiuto'].indexOf(action) < 0 && !MM.interactions.isEditing() &&
+    if (['apri', 'modelli', 'importa', 'aiuto'].indexOf(action) < 0 && !MM.interactions.isEditing() &&
         !document.querySelector('dialog[open]') && map) {
       document.getElementById('canvas').focus({ preventScroll: true });
     }
@@ -455,6 +456,31 @@
     openDialog(document.getElementById('dlg-aiuto'));
   }
 
+  /** Finestra dei modelli: un pulsante per modello, con icona e descrizione. */
+  function openTemplates() {
+    if (!MM.templates) return;
+    var list = document.getElementById('lista-modelli');
+    list.textContent = '';
+    MM.templates.list().forEach(function (t) {
+      list.appendChild(h('li', null, [h('button', {
+        type: 'button', 'class': 'template-card',
+        on: {
+          click: function () {
+            closeDialogs();
+            app.newMap(t.id);
+            if (t.id !== 'vuota') toast('Nuova mappa dal modello “' + t.name + '”', 'successo');
+          }
+        }
+      }, [
+        h('span', { 'class': 'template-icon', 'aria-hidden': 'true', text: t.icon }),
+        h('span', { 'class': 'template-name', text: t.name }),
+        h('span', { 'class': 'template-desc', text: t.description })
+      ])]));
+    });
+    app.saveNow();
+    openDialog(document.getElementById('dlg-modelli'));
+  }
+
   /* ---------- Avvio ---------- */
 
   function init(appApi) {
@@ -503,6 +529,7 @@
     setTitle: setTitle,
     openMapList: openMapList,
     openHelp: openHelp,
+    openTemplates: openTemplates,
     focusLinkLabel: focusLinkLabel,
     closeMenus: closeMenus
   };

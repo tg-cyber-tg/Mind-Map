@@ -14,6 +14,7 @@
     <div class="tool-group" role="group" aria-label="File">
       <button type="button" data-action="nuova" title="Nuova mappa">📄 <span>Nuova</span></button>
       <button type="button" data-action="apri" title="Le mie mappe">📂 <span>Apri</span></button>
+      <button type="button" data-action="modelli" data-needs="templates" title="Nuova mappa da un modello pronto">🧩 <span>Modelli</span></button>
       <button type="button" data-action="importa" title="Importa un file .mappa.json">📥 <span>Importa</span></button>
       <div class="menu">
         <button type="button" data-menu="menu-esporta" aria-haspopup="true" aria-expanded="false" title="Esporta">📤 <span>Esporta ▾</span></button>
@@ -78,6 +79,15 @@
     </div>
   </dialog>
 
+  <dialog id="dlg-modelli" class="dialog" aria-labelledby="dlg-modelli-titolo">
+    <h2 id="dlg-modelli-titolo">🧩 Scegli un modello</h2>
+    <p class="dialog-hint">Si apre una nuova mappa già impostata: cambia i testi con i tuoi (doppio clic o F2). La mappa attuale resta salvata in “Apri”.</p>
+    <ul id="lista-modelli" class="template-list"></ul>
+    <div class="dialog-actions">
+      <button type="button" data-close>Chiudi</button>
+    </div>
+  </dialog>
+
   <dialog id="dlg-aiuto" class="dialog" aria-labelledby="dlg-aiuto-titolo">
     <h2 id="dlg-aiuto-titolo">❓ Come si usa</h2>
     <div class="help-columns">
@@ -127,6 +137,7 @@
   <script src="js/layout.js" defer></script>
   <script src="js/viewport.js" defer></script>
   <script src="js/renderer.js" defer></script>
+  <script src="js/templates.js" defer></script>
   <script src="js/interactions.js" defer></script>
   <script src="js/ui.js" defer></script>
   <script src="js/app.js" defer></script>
