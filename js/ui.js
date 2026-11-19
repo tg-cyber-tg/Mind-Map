@@ -122,10 +122,14 @@
       case 'zoom-piu': app.zoom(1.2); break;
       case 'adatta': app.fit(); break;
       case 'aiuto': openHelp(); break;
+      case 'accessibilita': openSettings(); break;
+      case 'leggi-idea': app.readSelection(); break;
+      case 'leggi-mappa': app.readMap(); break;
+      case 'leggi-stop': app.stopReading(); break;
       default: return;
     }
     // Dopo un'azione sulla mappa il focus torna all'area di lavoro (tastiera pronta).
-    if (['apri', 'modelli', 'importa', 'aiuto'].indexOf(action) < 0 && !MM.interactions.isEditing() &&
+    if (['apri', 'modelli', 'importa', 'aiuto', 'accessibilita'].indexOf(action) < 0 && !MM.interactions.isEditing() &&
         !document.querySelector('dialog[open]') && map) {
       document.getElementById('canvas').focus({ preventScroll: true });
     }
@@ -156,6 +160,13 @@
     });
     // Le funzioni delle tappe successive restano nascoste finché il modulo non esiste.
     $all('[data-needs]').forEach(function (b) { b.hidden = !MM[b.getAttribute('data-needs')]; });
+    // Lettura vocale: visibile ma disattivata (con spiegazione) se il browser non la supporta.
+    var speechBtn = $('[data-menu="menu-leggi"]');
+    if (speechBtn && MM.speech && !MM.speech.isSupported()) {
+      speechBtn.disabled = true;
+      speechBtn.title = 'Questo browser non sa leggere ad alta voce: prova con Chrome, Edge o Safari';
+    }
+    set('leggi-stop', !!MM.speech && MM.speech.isSpeaking());
   }
 
   function setTitle(title) {
@@ -456,6 +467,81 @@
     openDialog(document.getElementById('dlg-aiuto'));
   }
 
+  /* ---------- Accessibilità ---------- */
+
+  function formatNumber(v, digits) {
+    try { return Number(v).toLocaleString('it-IT', { maximumFractionDigits: digits }); }
+    catch (e) { return String(v); }
+  }
+
+  function voiceInfo() {
+    if (!MM.speech || !MM.speech.isSupported()) return 'Questo browser non sa leggere ad alta voce.';
+    var v = MM.speech.getItalianVoice();
+    return v ? 'Voce italiana: ' + v.name
+      : 'Nessuna voce italiana trovata: su Mac aggiungila in Impostazioni di Sistema → Accessibilità → Contenuti letti.';
+  }
+
+  /** Riporta nei campi della finestra i valori attuali. */
+  function fillSettings() {
+    var form = document.getElementById('form-accessibilita');
+    var s = app.getMap().settings;
+    $all('input[type="radio"]', form).forEach(function (r) { r.checked = s[r.name] === r.value; });
+    form.elements.uppercase.checked = !!s.uppercase;
+    form.elements.fontScale.value = s.fontScale || 1;
+    document.getElementById('acc-font-scale-val').textContent = Math.round((s.fontScale || 1) * 100) + '%';
+    if (MM.speech) {
+      var rate = MM.speech.getRate();
+      form.elements.rate.value = rate;
+      document.getElementById('acc-rate-val').textContent = formatNumber(rate, 2) + '×';
+    }
+    document.getElementById('acc-voice-info').textContent = voiceInfo();
+  }
+
+  function openSettings() {
+    fillSettings();
+    openDialog(document.getElementById('dlg-accessibilita'));
+    // La voce può arrivare in ritardo (Chrome): si aggiorna l'informazione.
+    setTimeout(function () { document.getElementById('acc-voice-info').textContent = voiceInfo(); }, 500);
+  }
+
+  function bindSettings() {
+    var form = document.getElementById('form-accessibilita');
+    if (!form) return;
+    form.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t.name === 'theme' || t.name === 'fontFamily') app.applySettings(patchOf(t.name, t.value));
+      else if (t.name === 'uppercase') app.applySettings({ uppercase: t.checked });
+      else if (t.name === 'fontScale') app.applySettings({ fontScale: parseFloat(t.value) });
+      else if (t.name === 'rate' && MM.speech) MM.speech.setRate(parseFloat(t.value));
+      fillSettings();
+    });
+    // Durante il trascinamento del cursore si aggiorna solo il valore mostrato.
+    form.addEventListener('input', function (e) {
+      if (e.target.name === 'fontScale') {
+        document.getElementById('acc-font-scale-val').textContent = Math.round(parseFloat(e.target.value) * 100) + '%';
+      } else if (e.target.name === 'rate') {
+        document.getElementById('acc-rate-val').textContent = formatNumber(parseFloat(e.target.value), 2) + '×';
+      }
+    });
+    document.getElementById('acc-prova-voce').addEventListener('click', function () {
+      if (!MM.speech) return;
+      MM.speech.speak('Ciao! Questa è la voce che leggerà le tue mappe.').catch(function (err) { toast(err.message, 'avviso'); });
+    });
+    document.getElementById('acc-ripristina').addEventListener('click', function () {
+      var d = MM.model.DEFAULT_SETTINGS;
+      app.applySettings({ theme: d.theme, uppercase: d.uppercase, fontScale: d.fontScale, fontFamily: d.fontFamily });
+      if (MM.speech) MM.speech.setRate(MM.speech.DEFAULT_RATE);
+      fillSettings();
+      toast('Impostazioni iniziali ripristinate');
+    });
+  }
+
+  function patchOf(key, value) {
+    var p = {};
+    p[key] = value;
+    return p;
+  }
+
   /** Finestra dei modelli: un pulsante per modello, con icona e descrizione. */
   function openTemplates() {
     if (!MM.templates) return;
@@ -518,6 +604,14 @@
 
     app.state.viewport.onChange(updateZoom);
     updateZoom(app.state.viewport.getState());
+    bindSettings();
+    if (MM.speech) {
+      MM.speech.onChange(function (speaking) {
+        var b = $('[data-menu="menu-leggi"]');
+        if (b) b.classList.toggle('active', speaking);
+        $all('[data-action="leggi-stop"]').forEach(function (x) { x.disabled = !speaking; });
+      });
+    }
   }
 
   MM.ui = {
@@ -530,6 +624,7 @@
     openMapList: openMapList,
     openHelp: openHelp,
     openTemplates: openTemplates,
+    openSettings: openSettings,
     focusLinkLabel: focusLinkLabel,
     closeMenus: closeMenus
   };

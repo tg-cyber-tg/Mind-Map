@@ -358,7 +358,13 @@
       case 'Backspace':
         app.deleteSelection();
         break;
+      case 'r':
+      case 'R':
+        if (e.altKey) { handled = false; break; }
+        app.readSelection();
+        break;
       case 'Escape':
+        if (MM.speech && MM.speech.isSpeaking()) { app.stopReading(); break; }
         if (st.mode === 'collegamento') { app.setMode('normale'); if (MM.ui) MM.ui.toast('Collegamento annullato'); }
         else if (st.selectedLinkId) app.selectLink(null);
         else app.select(map.rootId);

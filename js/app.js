@@ -61,6 +61,10 @@
     body.setAttribute('data-theme', settings.theme || 'chiaro');
     body.classList.toggle('mm-uppercase', !!settings.uppercase);
     body.classList.toggle('mm-font-leggibile', settings.fontFamily !== 'standard');
+    // Anche l'interfaccia cresce con il testo della mappa, ma in modo attenuato
+    // (a 2× la barra degli strumenti non starebbe più sullo schermo).
+    var scale = settings.fontScale || 1;
+    body.style.setProperty('--mm-font-scale', String(Math.round((1 + (scale - 1) * 0.4) * 100) / 100));
   }
 
   /* ---------- Salvataggio automatico ---------- */
@@ -256,6 +260,7 @@
   /** Sostituisce la mappa corrente (nuova cronologia, layout se mancante, adatta la vista). */
   function loadIntoEditor(map, options) {
     if (state.mode === 'modifica' && MM.interactions) MM.interactions.cancelInlineEdit();
+    if (MM.speech && MM.speech.isSpeaking()) stopReading();
     if (state.map) saveNow();
     applyBodySettings(map.settings);
     if (state.renderer) state.renderer.invalidate();
@@ -272,8 +277,12 @@
 
   /** Mappa vuota oppure da modello (se MM.templates è disponibile). */
   function createFromTemplate(templateId) {
-    if (templateId && templateId !== 'vuota' && MM.templates) return MM.templates.create(templateId);
-    return MM.model.createMap('Nuova mappa');
+    var map = templateId && templateId !== 'vuota' && MM.templates
+      ? MM.templates.create(templateId) : MM.model.createMap('Nuova mappa');
+    // Le nuove mappe usano le ultime scelte di accessibilità (tema, carattere…).
+    var prefs = MM.storage.getPreferences();
+    Object.keys(prefs).forEach(function (k) { map.settings[k] = prefs[k]; });
+    return map;
   }
 
   function newMap(templateId) {
@@ -354,10 +363,54 @@
     Object.keys(patch).forEach(function (k) { m.settings[k] = patch[k]; });
     if (m.settings.fontScale) m.settings.fontScale = Math.max(0.8, Math.min(2, m.settings.fontScale));
     applyBodySettings(m.settings);
+    if (['theme', 'uppercase', 'fontScale', 'fontFamily'].some(function (k) { return k in patch; })) {
+      MM.storage.setPreferences(m.settings);
+    }
     var needsLayout = ['layout', 'fontScale', 'uppercase', 'fontFamily'].some(function (k) { return k in patch; });
     if (state.renderer && ('fontFamily' in patch || 'fontScale' in patch || 'uppercase' in patch)) state.renderer.invalidate();
     commit(m, { relayout: needsLayout });
     if ('layout' in patch) fit();
+  }
+
+  /* ---------- Lettura ad alta voce ---------- */
+
+  function speechError(e) { toast(e.message, 'avviso'); }
+
+  function endReading() {
+    if (state.renderer) state.renderer.highlight(null);
+  }
+
+  /** Legge l'idea selezionata (o il collegamento selezionato). */
+  function readSelection() {
+    if (!MM.speech) return;
+    var link = state.selectedLinkId ? findLink(state.selectedLinkId) : null;
+    if (link) {
+      var single = MM.model.clone(state.map);
+      single.links = [link];
+      var seq = MM.speech.mapSequence(single);
+      MM.speech.speakSequence([seq[seq.length - 1]]).catch(speechError);
+      return;
+    }
+    var id = state.selectedId || state.map.rootId;
+    if (state.renderer) state.renderer.highlight(id);
+    MM.speech.speakNode(state.map, id).then(endReading, function (e) { endReading(); speechError(e); });
+  }
+
+  /** Legge tutta la mappa evidenziando un'idea alla volta. */
+  function readMap() {
+    if (!MM.speech) return;
+    var map = state.map;
+    MM.speech.speakMap(map, function (nodeId) {
+      if (!state.renderer) return;
+      // Le idee nei rami compressi non sono visibili: si evidenzia solo ciò che si vede.
+      state.renderer.highlight(nodeId && state.map === map ? nodeId : null);
+      if (nodeId && state.map === map && state.renderer.getNodeElement(nodeId)) revealNode(nodeId);
+    }).then(endReading, function (e) { endReading(); speechError(e); });
+  }
+
+  function stopReading() {
+    if (MM.speech) MM.speech.stop();
+    endReading();
   }
 
   /* ---------- Avvio ---------- */
@@ -432,6 +485,9 @@
     importFile: importFile,
     exportAs: exportAs,
     applySettings: applySettings,
+    readSelection: readSelection,
+    readMap: readMap,
+    stopReading: stopReading,
     saveNow: saveNow,
     findLink: findLink,
     getMap: function () { return state.map; },

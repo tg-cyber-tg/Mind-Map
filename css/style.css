@@ -319,6 +319,28 @@ button.danger:hover:not(:disabled) { border-color: #c62828; color: #c62828; }
 .template-name { font-weight: bold; }
 .template-desc { font-size: 0.82rem; opacity: 0.85; }
 
+/* Finestra Accessibilità. */
+.settings-form { display: flex; flex-direction: column; gap: 0.8rem; min-width: min(30rem, 80vw); }
+.settings-form fieldset {
+  display: flex; flex-direction: column; gap: 0.45rem;
+  margin: 0; padding: 0.6rem 0.9rem 0.8rem;
+  border: 1px solid var(--mm-border); border-radius: 10px;
+}
+.settings-form fieldset[hidden] { display: none; }
+.settings-form legend { font-weight: bold; padding: 0 0.3rem; }
+.settings-form label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.settings-form input[type="radio"], .settings-form input[type="checkbox"] { width: 1.2rem; height: 1.2rem; accent-color: var(--mm-accent); }
+.settings-form input[type="range"] { width: 100%; accent-color: var(--mm-accent); }
+.settings-form output { font-weight: bold; }
+.settings-form .dialog-hint { margin: 0; }
+
+/* Tema ad alto contrasto: bordi spessi e nitidi anche sulla mappa. */
+[data-theme="alto-contrasto"] .node-shape { stroke: #ffffff; stroke-width: 3; }
+[data-theme="alto-contrasto"] .node.selected .node-shape { stroke: #ffff00; stroke-width: 5; filter: none; }
+[data-theme="alto-contrasto"] .branch { opacity: 1; }
+[data-theme="alto-contrasto"] .link { opacity: 1; stroke-width: 3; }
+[data-theme="alto-contrasto"] .dialog::backdrop { background: rgba(0, 0, 0, 0.8); }
+
 .help-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 .help-columns h3 { font-size: 1rem; margin: 0.5rem 0; }
 .help-columns ul { padding-left: 1.1rem; margin: 0; }

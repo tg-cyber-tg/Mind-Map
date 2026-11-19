@@ -195,6 +195,28 @@
       });
     });
 
+    describe('preferenze di accessibilità', function () {
+      it('salva e rilegge tema, carattere, maiuscolo e grandezza (non il layout)', function () {
+        fresh();
+        assert.deepEqual(S.getPreferences(), {});
+        S.setPreferences({ layout: 'tree', theme: 'alto-contrasto', uppercase: true, fontScale: 1.4, fontFamily: 'standard' });
+        assert.deepEqual(S.getPreferences(), { theme: 'alto-contrasto', uppercase: true, fontScale: 1.4, fontFamily: 'standard' });
+      });
+      it('ignora valori non validi o dati danneggiati', function () {
+        var b = fresh();
+        b.setItem(S.PREFS_KEY, JSON.stringify({ theme: 'viola', uppercase: 'sì', fontScale: 9, fontFamily: 'x' }));
+        assert.deepEqual(S.getPreferences(), { fontScale: 2 });
+        b.setItem(S.PREFS_KEY, '{rotto');
+        assert.deepEqual(S.getPreferences(), {});
+      });
+      it('le preferenze non compaiono tra le mappe salvate', function () {
+        var b = fresh();
+        S.setPreferences({ theme: 'scuro' });
+        b.removeItem(S.INDEX_KEY);
+        assert.equal(S.listMaps().length, 0);
+      });
+    });
+
     // Ripristina il backend predefinito per non influenzare altri test.
     it('ripristina il backend predefinito', function () {
       S.setBackend(null);

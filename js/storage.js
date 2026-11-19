@@ -191,6 +191,31 @@
     try { getBackend().setItem(LAST_KEY, id); } catch (e) { /* non essenziale */ }
   }
 
+  /* ---------- Preferenze di accessibilità (valgono per le nuove mappe) ---------- */
+
+  var PREFS_KEY = 'mm:preferenze';
+  var PREF_FIELDS = ['theme', 'uppercase', 'fontScale', 'fontFamily'];
+
+  /** Preferenze salvate e valide (oggetto vuoto se assenti o danneggiate). */
+  function getPreferences() {
+    var out = {};
+    var raw = null;
+    try { raw = JSON.parse(getBackend().getItem(PREFS_KEY)); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== 'object') return out;
+    if (MM.model.THEMES.indexOf(raw.theme) >= 0) out.theme = raw.theme;
+    if (typeof raw.uppercase === 'boolean') out.uppercase = raw.uppercase;
+    if (typeof raw.fontScale === 'number' && isFinite(raw.fontScale)) out.fontScale = Math.max(0.8, Math.min(2, raw.fontScale));
+    if (raw.fontFamily === 'leggibile' || raw.fontFamily === 'standard') out.fontFamily = raw.fontFamily;
+    return out;
+  }
+
+  /** Salva le preferenze prese dalle impostazioni di una mappa (il layout no: dipende dalla mappa). */
+  function setPreferences(settings) {
+    var p = {};
+    PREF_FIELDS.forEach(function (k) { if (settings && settings[k] !== undefined) p[k] = settings[k]; });
+    try { getBackend().setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) { /* non essenziale */ }
+  }
+
   /* ---------- File .mappa.json ---------- */
 
   function serialize(map) {
@@ -263,6 +288,7 @@
     createMemoryBackend: createMemoryBackend, setBackend: setBackend, isPersistent: isPersistent,
     listMaps: listMaps, saveMap: saveMap, loadMap: loadMap, deleteMap: deleteMap,
     duplicateMap: duplicateMap, getLastMapId: getLastMapId, setLastMapId: setLastMapId,
+    PREFS_KEY: PREFS_KEY, getPreferences: getPreferences, setPreferences: setPreferences,
     serialize: serialize, deserialize: deserialize, sanitizeFilename: sanitizeFilename,
     downloadFile: downloadFile, readFile: readFile
   };
