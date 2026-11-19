@@ -15,6 +15,8 @@
   ];
   var SHAPE_LABELS = { rounded: 'Arrotondato', ellipse: 'Ovale', rect: 'Rettangolo' };
   var SHAPE_ICONS = { rounded: '▢', ellipse: '⬭', rect: '▭' };
+  // Etichette tipiche delle mappe concettuali (un clic per inserirle).
+  var LINK_LABELS = ['causa', 'provoca', 'è formato da', 'è un tipo di', 'serve a', 'si oppone a', 'influenza', 'esempio'];
 
   var app = null;
   var panel = null;
@@ -249,6 +251,7 @@
     ]));
 
     parts.push(emojiSection(node));
+    parts.push(linksSection(map, node));
     parts.push(actionsSection(node));
     return parts;
   }
@@ -303,11 +306,43 @@
           liveUpdate('link:' + link.id, function (m) { return MM.model.updateLink(m, link.id, { label: v }); });
         }
       }),
+      h('div', { 'class': 'label-suggestions', role: 'group', 'aria-label': 'Etichette frequenti' },
+        LINK_LABELS.map(function (lbl) {
+          return h('button', {
+            type: 'button', 'class': 'chip',
+            on: { click: function () { app.tryCommit(function (m) { return MM.model.updateLink(m, link.id, { label: lbl }); }); } }
+          }, [lbl]);
+        })),
       h('div', { 'class': 'prop-actions' }, [
+        h('button', { type: 'button', on: { click: function () {
+          app.tryCommit(function (m) { return MM.model.reverseLink(m, link.id); });
+        } } }, ['🔄 Inverti la freccia']),
+        h('button', { type: 'button', on: { click: function () { app.select(link.fromId); } } },
+          ['⬅️ Vai al primo nodo']),
         h('button', { type: 'button', 'class': 'danger', on: { click: function () { app.deleteSelection(); } } },
           ['🗑️ Elimina collegamento'])
       ])
     ])];
+  }
+
+  /** Collegamenti trasversali del nodo, con pulsante per crearne uno nuovo. */
+  function linksSection(map, node) {
+    var links = MM.model.getLinksOf(map, node.id);
+    var items = links.map(function (l) {
+      var outgoing = l.fromId === node.id;
+      var other = map.nodes[outgoing ? l.toId : l.fromId];
+      var text = (outgoing ? '→ ' : '← ') + other.text.replace(/\s+/g, ' ') + (l.label ? ' (' + l.label + ')' : '');
+      return h('li', null, [h('button', {
+        type: 'button', 'class': 'link-item',
+        on: { click: function () { app.selectLink(l.id); } }
+      }, [text])]);
+    });
+    return section('🔗 Collegamenti', [
+      links.length ? h('ul', { 'class': 'link-list' }, items)
+        : h('p', { 'class': 'prop-hint', text: 'Collega questa idea a un\'altra di un ramo diverso (es. «causa», «è formato da»).' }),
+      h('button', { type: 'button', on: { click: function () { MM.interactions.startLinkMode(); } } },
+        ['🔗 Collega a un altro nodo (L)'])
+    ]);
   }
 
   /**

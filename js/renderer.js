@@ -279,6 +279,12 @@
       setAttrs(item.path, { d: d });
       setAttrs(item.hit, { d: d });
       var selected = opts.selectedLinkId === link.id;
+      setAttrs(item.label, {
+        role: 'button',
+        'aria-label': 'Collegamento da «' + a.text.replace(/\s+/g, ' ') + '» a «' + b.text.replace(/\s+/g, ' ') + '»' +
+          (link.label ? ': ' + link.label : ''),
+        'aria-pressed': selected ? 'true' : 'false'
+      });
       item.path.classList.toggle('selected', selected);
       item.label.classList.toggle('selected', selected);
       // Etichetta al centro della curva (punto a t = 0.5 della Bézier quadratica).

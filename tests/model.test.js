@@ -167,6 +167,33 @@
         assert.throws(function () { M.addLink(map, s.a, s.b); }, /già collegati/);
         assert.throws(function () { M.addLink(map, s.b, s.a); }, /già collegati/);
       });
+      it('inverte la direzione senza toccare l\'originale', function () {
+        var s = sample();
+        var r = M.addLink(s.map, s.a1, s.b, 'causa');
+        var map = M.reverseLink(r.map, r.linkId);
+        assert.equal(map.links[0].fromId, s.b);
+        assert.equal(map.links[0].toId, s.a1);
+        assert.equal(map.links[0].label, 'causa');
+        assert.equal(r.map.links[0].fromId, s.a1);
+        assert.ok(M.validate(map).ok);
+      });
+      it('elenca i collegamenti di un nodo (in entrata e in uscita)', function () {
+        var s = sample();
+        var map = M.addLink(s.map, s.a1, s.b, 'x').map;
+        map = M.addLink(map, s.a2, s.a1, 'y').map;
+        assert.equal(M.getLinksOf(map, s.a1).length, 2);
+        assert.equal(M.getLinksOf(map, s.b).length, 1);
+        assert.equal(M.getLinksOf(map, s.a).length, 0);
+      });
+      it('etichetta limitata a MAX_TEXT caratteri', function () {
+        var s = sample();
+        var r = M.addLink(s.map, s.a, s.b, new Array(300).join('x'));
+        assert.equal(r.map.links[0].label.length, M.MAX_TEXT);
+      });
+      it('errore per un collegamento inesistente', function () {
+        var s = sample();
+        assert.throws(function () { M.reverseLink(s.map, 'l_nessuno'); }, /non trovato/);
+      });
     });
 
     describe('consultazione', function () {

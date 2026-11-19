@@ -344,6 +344,21 @@
     return m;
   }
 
+  /** Inverte la direzione della freccia di un collegamento. */
+  function reverseLink(map, linkId) {
+    var m = clone(map);
+    var link = m.links[findLinkIndex(m, linkId)];
+    var from = link.fromId;
+    link.fromId = link.toId;
+    link.toId = from;
+    return m;
+  }
+
+  /** Collegamenti trasversali che partono da o arrivano a un nodo. */
+  function getLinksOf(map, nodeId) {
+    return (map.links || []).filter(function (l) { return l.fromId === nodeId || l.toId === nodeId; });
+  }
+
   /* ---------- Utilità ---------- */
 
   /** Schema testuale indentato (per lettura vocale e copia negli appunti). */
@@ -452,6 +467,7 @@
     removeNode: removeNode, moveNode: moveNode, reparent: reparent,
     toggleCollapsed: toggleCollapsed,
     addLink: addLink, updateLink: updateLink, removeLink: removeLink,
+    reverseLink: reverseLink, getLinksOf: getLinksOf,
     toOutline: toOutline, textColorFor: textColorFor, validate: validate
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
