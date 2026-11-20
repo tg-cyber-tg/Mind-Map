@@ -12,7 +12,8 @@
   var MARGIN = 40;
   var MAX_PIXELS = 16000000;   // limite prudente per Safari/iPad (circa 4000×4000)
   var MAX_SIDE = 8192;
-  var ARROW_ID = 'mmx-arrow';  // diverso dal marcatore della pagina (evita conflitti)
+  var ARROW_ID = 'mmx-arrow';   // diverso dal marcatore della pagina (evita conflitti)
+  var SHADOW_ID = 'mmx-shadow'; // diverso dal filtro della pagina (evita conflitti)
   var TRANSIENT_CLASSES = ['selected', 'highlight', 'link-source', 'drop-target', 'dragging', 'editing'];
   var TECH_ATTRS = ['role', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-level', 'aria-label',
     'data-id', 'data-link-id', 'tabindex'];
@@ -55,31 +56,39 @@
     function v(name, fallback) { return body.getPropertyValue(name).trim() || fallback; }
     var ts = root.getComputedStyle(svgEl);
     var theme = (map.settings && map.settings.theme) || 'chiaro';
+    var defaultBg = theme === 'scuro' ? '#0f172a' : (theme === 'alto-contrasto' ? '#000000' : '#ffffff');
+    var defaultSurface = theme === 'scuro' ? '#1e293b' : (theme === 'alto-contrasto' ? '#000000' : '#ffffff');
+    var defaultText = theme === 'chiaro' ? '#0f172a' : (theme === 'scuro' ? '#f8fafc' : '#ffffff');
+    var defaultBorder = theme === 'scuro' ? '#334155' : (theme === 'alto-contrasto' ? '#ffffff' : '#e2e8f0');
     return {
+      theme: theme,
       // Tema chiaro: sfondo bianco puro (adatto a stampa e documenti).
-      bg: theme === 'chiaro' ? '#ffffff' : v('--mm-bg', '#ffffff'),
-      surface: v('--mm-surface', '#ffffff'),
-      text: v('--mm-text', '#1a1a1a'),
-      border: v('--mm-border', '#d0d7e2'),
-      fontFamily: ts.fontFamily || 'Verdana, Tahoma, Arial, sans-serif',
+      bg: theme === 'chiaro' ? '#ffffff' : (theme === 'alto-contrasto' ? '#000000' : v('--mm-bg', defaultBg)),
+      surface: theme === 'alto-contrasto' ? '#000000' : v('--mm-surface', defaultSurface),
+      text: theme === 'alto-contrasto' ? '#ffffff' : v('--mm-text', defaultText),
+      border: theme === 'alto-contrasto' ? '#ffffff' : v('--mm-border', defaultBorder),
+      fontFamily: ts.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       letterSpacing: ts.letterSpacing && ts.letterSpacing !== 'normal' ? ts.letterSpacing : '0',
       wordSpacing: ts.wordSpacing && ts.wordSpacing !== 'normal' ? ts.wordSpacing : '0'
     };
   }
 
   function styleSheet(look) {
+    var hc = look.theme === 'alto-contrasto';
     return [
       'text{font-family:' + look.fontFamily + ';letter-spacing:' + look.letterSpacing +
         ';word-spacing:' + look.wordSpacing + '}',
-      '.branch{fill:none;stroke-linecap:round;opacity:.9}',
-      '.node-shape{stroke-width:2}',
-      '.node.root .node-shape{stroke-width:3}',
-      '.link{fill:none;stroke:' + look.text + ';stroke-width:2;stroke-dasharray:7 5;opacity:.75}',
+      '.branch{fill:none;stroke-linecap:round;opacity:.88}',
+      '.node-shape{stroke-width:' + (hc ? '2.5' : '1.75') + '}',
+      '.node.root .node-shape{stroke-width:' + (hc ? '3' : '1.5') + '}',
+      '.node-icon{pointer-events:none}',
+      '.link{fill:none;stroke:' + look.text + ';stroke-width:1.75;stroke-dasharray:6 5;opacity:.65}',
       '.link-arrow{fill:' + look.text + '}',
       '.link-label rect{fill:' + look.surface + ';stroke:' + look.border + '}',
       '.link-label text{fill:' + look.text + ';font-style:italic}',
-      '.badge-collapsed circle{fill:' + look.surface + ';stroke:' + look.text + ';stroke-width:2}',
-      '.badge-collapsed text{fill:' + look.text + ';font-weight:bold;letter-spacing:0}'
+      '.badge-collapsed circle{fill:' + look.surface + ';stroke-width:1.75}',
+      '.badge-collapsed text{fill:' + look.text + ';font-weight:bold;letter-spacing:0}',
+      '.badge-note circle{fill:' + look.surface + ';stroke-width:1.5}'
     ].join('\n');
   }
 
@@ -100,6 +109,8 @@
       TRANSIENT_CLASSES.forEach(function (c) { e.classList.remove(c); });
       TECH_ATTRS.forEach(function (a) { e.removeAttribute(a); });
       if (e.getAttribute('marker-end')) e.setAttribute('marker-end', 'url(#' + ARROW_ID + ')');
+      var flt = e.getAttribute('filter');
+      if (flt && flt.indexOf('mm-node-shadow') >= 0) e.setAttribute('filter', 'url(#' + SHADOW_ID + ')');
       // Le etichette vuote sono nascoste con display:none: si eliminano del tutto.
       if (e.style && e.style.display === 'none' && e.parentNode) e.parentNode.removeChild(e);
     }
@@ -125,6 +136,12 @@
       var m = marker.cloneNode(true);
       m.setAttribute('id', ARROW_ID);
       defs.appendChild(m);
+    }
+    var shadow = renderer.svg.querySelector('#mm-node-shadow');
+    if (shadow) {
+      var s = shadow.cloneNode(true);
+      s.setAttribute('id', SHADOW_ID);
+      defs.appendChild(s);
     }
     svgEl('rect', { x: box.x, y: box.y, width: box.width, height: box.height, fill: look.bg }, svg);
     svg.appendChild(cleanClone(renderer.world.cloneNode(true)));

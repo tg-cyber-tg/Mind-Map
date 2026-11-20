@@ -8,6 +8,7 @@
   'use strict';
   var MM = root.MM;
   var SAVE_DELAY = 500;
+  var PROPS_KEY = 'mm:ui-props-open';
 
   var state = {
     map: null,
@@ -22,6 +23,8 @@
   var transient = {};          // opzioni di disegno temporanee (trascinamento)
   var saveTimer = null;
   var warnedNotPersistent = false;
+  var pendingRemoteMap = null;
+  var propertiesOpen = true;
 
   function ui() { return MM.ui || null; }
   function toast(msg, type) { if (ui()) ui().toast(msg, type); }
@@ -73,8 +76,10 @@
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (!state.map) return;
     try {
-      MM.storage.saveMap(state.map);
+      var saved = MM.storage.saveMap(state.map);
+      state.map.updatedAt = saved.updatedAt;
       MM.storage.setLastMapId(state.map.id);
+      if (MM.sync) MM.sync.pushMap(saved);
       if (!MM.storage.isPersistent() && !warnedNotPersistent) {
         warnedNotPersistent = true;
         toast('Il browser non permette di salvare: esporta la mappa per non perderla', 'avviso');
@@ -158,11 +163,17 @@
   }
 
   function setMode(mode) {
+    var prev = state.mode;
     state.mode = mode;
     if (mode !== 'collegamento') state.pendingLinkFrom = null;
     document.body.setAttribute('data-mode', mode);
     render();
     if (ui()) ui().updateToolbarState(api);
+    if (prev === 'modifica' && mode !== 'modifica' && pendingRemoteMap) {
+      var remote = pendingRemoteMap;
+      pendingRemoteMap = null;
+      applyRemoteMap(remote);
+    }
   }
 
   /* ---------- Azioni sui nodi (usate da tastiera, mouse e barra) ---------- */
@@ -309,11 +320,69 @@
   /** Elimina una mappa salvata; se è quella aperta, apre la più recente (o una nuova). */
   function deleteMap(id) {
     MM.storage.deleteMap(id);
+    if (MM.sync) MM.sync.deleteMap(id);
     if (state.map && state.map.id === id) {
       state.map = null; // evita che saveNow la ricrei
       var others = MM.storage.listMaps();
       if (others.length) openMap(others[0].id); else newMap('vuota');
     }
+  }
+
+  /* ---------- Aggiornamenti remoti (sincronizzazione) ---------- */
+
+  function applyRemoteMap(remoteMap) {
+    if (!remoteMap) return;
+    if (state.mode === 'modifica') {
+      pendingRemoteMap = remoteMap;
+      return;
+    }
+    var prevSel = state.selectedId;
+    var prevLink = state.selectedLinkId;
+    state.map = remoteMap;
+    applyBodySettings(state.map.settings);
+    state.selectedId = prevSel && state.map.nodes[prevSel] ? prevSel : state.map.rootId;
+    state.selectedLinkId = prevLink && findLink(prevLink) ? prevLink : null;
+    if (state.selectedLinkId) state.selectedId = null;
+    if (state.renderer) state.renderer.invalidate();
+    render();
+    refreshUi();
+  }
+
+  function onRemoteMapDeleted(id) {
+    if (state.map && state.map.id === id) {
+      state.map = null;
+      var others = MM.storage.listMaps();
+      if (others.length) openMap(others[0].id);
+      else newMap('vuota');
+      toast('La mappa aperta è stata eliminata da un altro dispositivo');
+    }
+  }
+
+  function onRemoteListChanged() {
+    if (ui() && ui().refreshMapList) ui().refreshMapList();
+  }
+
+  /* ---------- Pannello Proprietà (apri / chiudi) ---------- */
+
+  function readInitialPropertiesOpen() {
+    try {
+      var saved = root.localStorage && root.localStorage.getItem(PROPS_KEY);
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch (e) { /* ignora in modalità privata */ }
+    return typeof root.innerWidth === 'number' ? root.innerWidth >= 900 : true;
+  }
+
+  function toggleProperties(force) {
+    propertiesOpen = typeof force === 'boolean' ? force : !propertiesOpen;
+    try {
+      if (root.localStorage) root.localStorage.setItem(PROPS_KEY, propertiesOpen ? '1' : '0');
+    } catch (e) { /* ignora */ }
+    if (ui() && ui().setPropertiesOpen) ui().setPropertiesOpen(propertiesOpen);
+  }
+
+  function isPropertiesOpen() {
+    return propertiesOpen;
   }
 
   function importFile(file) {
@@ -433,15 +502,18 @@
   function init() {
     var svg = document.getElementById('canvas');
     var world = document.getElementById('world');
+    propertiesOpen = readInitialPropertiesOpen();
     state.renderer = MM.renderer.create(svg);
     state.viewport = MM.viewport.create(svg, world);
     if (MM.ui) MM.ui.init(api);
+    if (MM.ui && MM.ui.setPropertiesOpen) MM.ui.setPropertiesOpen(propertiesOpen);
     if (MM.interactions) MM.interactions.attach(api);
     if (MM.pwa) MM.pwa.init(api);
 
     var start = initialMap();
     loadIntoEditor(start.map, { relayout: start.fresh });
     if (start.fresh) saveNow();
+    if (MM.sync) MM.sync.init(api);
     svg.focus({ preventScroll: true }); // pronta per le scorciatoie da tastiera
 
     // Salvataggio immediato quando si chiude o si nasconde la pagina.
@@ -483,6 +555,11 @@
     newMap: newMap,
     openMap: openMap,
     deleteMap: deleteMap,
+    applyRemoteMap: applyRemoteMap,
+    onRemoteMapDeleted: onRemoteMapDeleted,
+    onRemoteListChanged: onRemoteListChanged,
+    toggleProperties: toggleProperties,
+    isPropertiesOpen: isPropertiesOpen,
     importFile: importFile,
     exportAs: exportAs,
     applySettings: applySettings,

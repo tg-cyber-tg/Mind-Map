@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mappe Mentali</title>
   <meta name="description" content="Mappe mentali e concettuali per la scuola, con lettura ad alta voce e strumenti per DSA.">
-  <meta name="theme-color" content="#1565c0">
+  <meta name="theme-color" content="#1e293b">
   <!-- Il manifest (app installabile) viene aggiunto da js/pwa.js solo da http(s): da file:// Chrome darebbe errore. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -19,89 +19,164 @@
 </head>
 <body class="mm-font-leggibile" data-theme="chiaro">
   <header id="toolbar" class="toolbar" role="toolbar" aria-label="Strumenti">
-    <span class="app-name" aria-hidden="true">🧠</span>
-    <h1 id="map-title" class="map-title" title="Titolo della mappa (è il testo del nodo centrale)">Mappe Mentali</h1>
+    <div class="brand">
+      <span class="app-logo" data-icon="logo" data-icon-size="22" aria-hidden="true"></span>
+      <h1 id="map-title" class="map-title" title="Titolo della mappa (è il testo del nodo centrale)">Mappe Mentali</h1>
+    </div>
 
     <div class="tool-group" role="group" aria-label="File">
-      <button type="button" data-action="nuova" title="Nuova mappa">📄 <span>Nuova</span></button>
-      <button type="button" data-action="apri" title="Le mie mappe">📂 <span>Apri</span></button>
-      <button type="button" data-action="modelli" data-needs="templates" title="Nuova mappa da un modello pronto">🧩 <span>Modelli</span></button>
-      <button type="button" data-action="importa" title="Importa un file .mappa.json">📥 <span>Importa</span></button>
+      <button type="button" data-action="nuova" title="Nuova mappa">
+        <span class="ico" data-icon="file-plus" aria-hidden="true"></span><span>Nuova</span>
+      </button>
+      <button type="button" data-action="apri" title="Le mie mappe">
+        <span class="ico" data-icon="folder" aria-hidden="true"></span><span>Mappe</span>
+      </button>
+      <button type="button" data-action="modelli" data-needs="templates" title="Nuova mappa da un modello pronto">
+        <span class="ico" data-icon="layout-template" aria-hidden="true"></span><span>Modelli</span>
+      </button>
+      <button type="button" data-action="importa" title="Importa un file .mappa.json">
+        <span class="ico" data-icon="download" aria-hidden="true"></span><span>Importa</span>
+      </button>
       <div class="menu">
-        <button type="button" data-menu="menu-esporta" aria-haspopup="true" aria-expanded="false" title="Esporta">📤 <span>Esporta ▾</span></button>
+        <button type="button" data-menu="menu-esporta" aria-haspopup="true" aria-expanded="false" title="Esporta">
+          <span class="ico" data-icon="upload" aria-hidden="true"></span><span>Esporta</span>
+          <span class="ico ico-caret" data-icon="chevron-down" data-icon-size="14" aria-hidden="true"></span>
+        </button>
         <div id="menu-esporta" class="menu-list" role="menu" hidden>
-          <button type="button" role="menuitem" data-action="esporta-json">💾 File mappa (.mappa.json)</button>
-          <button type="button" role="menuitem" data-action="esporta-png" data-needs="exporter">🖼️ Immagine PNG</button>
-          <button type="button" role="menuitem" data-action="esporta-svg" data-needs="exporter">✏️ Immagine SVG</button>
-          <button type="button" role="menuitem" data-action="stampa" data-needs="exporter">🖨️ Stampa / PDF</button>
+          <button type="button" role="menuitem" data-action="esporta-json">
+            <span class="ico" data-icon="save" aria-hidden="true"></span><span>File mappa (.mappa.json)</span>
+          </button>
+          <button type="button" role="menuitem" data-action="esporta-png" data-needs="exporter">
+            <span class="ico" data-icon="image" aria-hidden="true"></span><span>Immagine PNG</span>
+          </button>
+          <button type="button" role="menuitem" data-action="esporta-svg" data-needs="exporter">
+            <span class="ico" data-icon="file-code" aria-hidden="true"></span><span>Immagine SVG</span>
+          </button>
+          <button type="button" role="menuitem" data-action="stampa" data-needs="exporter">
+            <span class="ico" data-icon="printer" aria-hidden="true"></span><span>Stampa / PDF</span>
+          </button>
         </div>
       </div>
     </div>
 
     <div class="tool-group" role="group" aria-label="Modifica">
-      <button type="button" data-action="annulla" title="Annulla (Ctrl/Cmd+Z)">↩️ <span>Annulla</span></button>
-      <button type="button" data-action="ripristina" title="Ripristina (Ctrl/Cmd+Maiusc+Z)">↪️ <span>Ripristina</span></button>
+      <button type="button" data-action="annulla" title="Annulla (Ctrl/Cmd+Z)" aria-label="Annulla">
+        <span class="ico" data-icon="undo" aria-hidden="true"></span><span>Annulla</span>
+      </button>
+      <button type="button" data-action="ripristina" title="Ripristina (Ctrl/Cmd+Maiusc+Z)" aria-label="Ripristina">
+        <span class="ico" data-icon="redo" aria-hidden="true"></span><span>Ripristina</span>
+      </button>
     </div>
 
     <div class="tool-group" role="group" aria-label="Nodi">
-      <button type="button" data-action="figlio" title="Nuova idea collegata (Tab)">➕ <span>Figlio</span></button>
-      <button type="button" data-action="fratello" title="Nuova idea allo stesso livello (Invio)">⤵️ <span>Fratello</span></button>
-      <button type="button" data-action="collega" title="Collega due nodi (L)" aria-pressed="false">🔗 <span>Collega</span></button>
-      <button type="button" data-action="elimina" title="Elimina (Canc)">🗑️ <span>Elimina</span></button>
+      <button type="button" data-action="figlio" title="Nuova idea collegata (Tab)">
+        <span class="ico" data-icon="plus" aria-hidden="true"></span><span>Figlio</span>
+      </button>
+      <button type="button" data-action="fratello" title="Nuova idea allo stesso livello (Invio)">
+        <span class="ico" data-icon="sibling" aria-hidden="true"></span><span>Fratello</span>
+      </button>
+      <button type="button" data-action="collega" title="Collega due nodi (L)" aria-pressed="false">
+        <span class="ico" data-icon="link" aria-hidden="true"></span><span>Collega</span>
+      </button>
+      <button type="button" data-action="elimina" title="Elimina (Canc)" aria-label="Elimina">
+        <span class="ico" data-icon="trash" aria-hidden="true"></span><span>Elimina</span>
+      </button>
     </div>
 
-    <div class="tool-group" role="group" aria-label="Vista">
-      <div class="menu">
-        <button type="button" data-menu="menu-layout" aria-haspopup="true" aria-expanded="false" title="Disposizione automatica">🔀 <span>Layout ▾</span></button>
-        <div id="menu-layout" class="menu-list" role="menu" hidden>
-          <button type="button" role="menuitemradio" data-action="layout-radial" aria-checked="false">🌞 Mappa mentale (a raggiera)</button>
-          <button type="button" role="menuitemradio" data-action="layout-tree" aria-checked="false">🌳 Schema ad albero</button>
-          <button type="button" role="menuitem" data-action="riordina">✨ Riordina i nodi</button>
-        </div>
-      </div>
-      <button type="button" data-action="zoom-meno" title="Rimpicciolisci (−)" aria-label="Rimpicciolisci">➖</button>
-      <span id="zoom-level" class="zoom-level">100%</span>
-      <button type="button" data-action="zoom-piu" title="Ingrandisci (+)" aria-label="Ingrandisci">➕</button>
-      <button type="button" data-action="adatta" title="Adatta allo schermo (Ctrl/Cmd+0)">🔍 <span>Adatta</span></button>
-    </div>
-
-    <div class="tool-group" role="group" aria-label="Aiuti">
+    <div class="tool-group tool-group-right" role="group" aria-label="Strumenti">
       <div class="menu" data-needs="speech">
-        <button type="button" data-menu="menu-leggi" aria-haspopup="true" aria-expanded="false" title="Lettura ad alta voce">🔊 <span>Leggi ▾</span></button>
-        <div id="menu-leggi" class="menu-list" role="menu" hidden>
-          <button type="button" role="menuitem" data-action="leggi-idea">🔊 Leggi l'idea selezionata (R)</button>
-          <button type="button" role="menuitem" data-action="leggi-mappa">📢 Leggi tutta la mappa</button>
-          <button type="button" role="menuitem" data-action="leggi-stop">⏹️ Ferma la lettura (Esc)</button>
+        <button type="button" data-menu="menu-leggi" aria-haspopup="true" aria-expanded="false" title="Lettura ad alta voce">
+          <span class="ico" data-icon="volume" aria-hidden="true"></span><span>Leggi</span>
+          <span class="ico ico-caret" data-icon="chevron-down" data-icon-size="14" aria-hidden="true"></span>
+        </button>
+        <div id="menu-leggi" class="menu-list menu-list-right" role="menu" hidden>
+          <button type="button" role="menuitem" data-action="leggi-idea">
+            <span class="ico" data-icon="volume" aria-hidden="true"></span><span>Leggi l'idea selezionata (R)</span>
+          </button>
+          <button type="button" role="menuitem" data-action="leggi-mappa">
+            <span class="ico" data-icon="volume" aria-hidden="true"></span><span>Leggi tutta la mappa</span>
+          </button>
+          <button type="button" role="menuitem" data-action="leggi-stop">
+            <span class="ico" data-icon="stop" aria-hidden="true"></span><span>Ferma la lettura (Esc)</span>
+          </button>
         </div>
       </div>
-      <button type="button" data-action="accessibilita" title="Accessibilità: tema, carattere, maiuscolo, voce">👓 <span>Accessibilità</span></button>
-      <button type="button" data-action="aiuto" title="Aiuto e scorciatoie">❓ <span>Aiuto</span></button>
+      <button type="button" data-action="accessibilita" title="Accessibilità: tema, carattere, maiuscolo, voce">
+        <span class="ico" data-icon="eye" aria-hidden="true"></span><span>Accessibilità</span>
+      </button>
+      <button type="button" data-action="aiuto" title="Aiuto e scorciatoie" aria-label="Aiuto">
+        <span class="ico" data-icon="help" aria-hidden="true"></span><span>Aiuto</span>
+      </button>
+      <button type="button" id="btn-sync" class="btn-sync" data-action="sync" title="Sincronizzazione tra Mac e iPad">
+        <span id="sync-badge" class="sync-dot sync-dot-local" aria-hidden="true"></span>
+        <span id="sync-ico" class="ico" data-icon="cloud" aria-hidden="true"></span>
+        <span id="sync-label">Locale</span>
+      </button>
+      <button type="button" id="btn-toggle-props" data-action="toggle-properties" aria-pressed="true" title="Mostra o nascondi il pannello Proprietà" aria-label="Proprietà">
+        <span class="ico" data-icon="panel-right" aria-hidden="true"></span>
+      </button>
     </div>
     <input type="file" id="file-input" accept=".json,application/json" hidden>
   </header>
 
   <main class="workspace">
-    <svg id="canvas" class="canvas" role="tree" aria-label="Mappa mentale: Tab aggiunge un'idea, le frecce spostano la selezione" tabindex="0">
-      <defs></defs>
-      <g id="world"></g>
-    </svg>
+    <div class="canvas-stage">
+      <svg id="canvas" class="canvas" role="tree" aria-label="Mappa mentale: Tab aggiunge un'idea, le frecce spostano la selezione" tabindex="0">
+        <defs></defs>
+        <g id="world"></g>
+      </svg>
+
+      <div class="floating-controls" role="toolbar" aria-label="Vista e disposizione">
+        <div class="menu">
+          <button type="button" data-menu="menu-layout" aria-haspopup="true" aria-expanded="false" title="Disposizione automatica">
+            <span class="ico" data-icon="layout-radial" aria-hidden="true"></span>
+            <span>Layout</span>
+            <span class="ico ico-caret" data-icon="chevron-down" data-icon-size="14" aria-hidden="true"></span>
+          </button>
+          <div id="menu-layout" class="menu-list menu-list-up" role="menu" hidden>
+            <button type="button" role="menuitemradio" data-action="layout-radial" aria-checked="false">
+              <span class="ico" data-icon="layout-radial" aria-hidden="true"></span><span>Mappa mentale (a raggiera)</span>
+            </button>
+            <button type="button" role="menuitemradio" data-action="layout-tree" aria-checked="false">
+              <span class="ico" data-icon="layout-tree" aria-hidden="true"></span><span>Schema ad albero</span>
+            </button>
+            <button type="button" role="menuitem" data-action="riordina">
+              <span class="ico" data-icon="sparkles" aria-hidden="true"></span><span>Riordina i nodi</span>
+            </button>
+          </div>
+        </div>
+        <span class="floating-sep" aria-hidden="true"></span>
+        <button type="button" data-action="zoom-meno" title="Rimpicciolisci (−)" aria-label="Rimpicciolisci">
+          <span class="ico" data-icon="minus" data-icon-size="16" aria-hidden="true"></span>
+        </button>
+        <span id="zoom-level" class="zoom-level">100%</span>
+        <button type="button" data-action="zoom-piu" title="Ingrandisci (+)" aria-label="Ingrandisci">
+          <span class="ico" data-icon="plus" data-icon-size="16" aria-hidden="true"></span>
+        </button>
+        <span class="floating-sep" aria-hidden="true"></span>
+        <button type="button" data-action="adatta" title="Adatta allo schermo (Ctrl/Cmd+0)">
+          <span class="ico" data-icon="maximize" data-icon-size="16" aria-hidden="true"></span><span>Adatta</span>
+        </button>
+      </div>
+    </div>
+
     <aside id="properties" class="properties" aria-label="Proprietà"></aside>
   </main>
 
   <!-- Finestre modali -->
   <dialog id="dlg-mappe" class="dialog" aria-labelledby="dlg-mappe-titolo">
-    <h2 id="dlg-mappe-titolo">📂 Le mie mappe</h2>
-    <p class="dialog-hint">Le mappe sono salvate in questo browser. Per non perderle, esportale ogni tanto (Esporta → File mappa).</p>
+    <h2 id="dlg-mappe-titolo"><span class="ico" data-icon="folder" data-icon-size="20" aria-hidden="true"></span> Le mie mappe</h2>
+    <p class="dialog-hint">Le mappe sono salvate automaticamente in questo browser. Attiva la sincronizzazione per averle su Mac e iPad, oppure esportale come file (.mappa.json).</p>
     <ul id="lista-mappe" class="map-list"></ul>
     <div class="dialog-actions">
-      <button type="button" data-action="nuova">📄 Nuova mappa</button>
+      <button type="button" data-action="nuova"><span class="ico" data-icon="file-plus" aria-hidden="true"></span> Nuova mappa</button>
       <button type="button" data-close>Chiudi</button>
     </div>
   </dialog>
 
   <dialog id="dlg-modelli" class="dialog" aria-labelledby="dlg-modelli-titolo">
-    <h2 id="dlg-modelli-titolo">🧩 Scegli un modello</h2>
-    <p class="dialog-hint">Si apre una nuova mappa già impostata: cambia i testi con i tuoi (doppio clic o F2). La mappa attuale resta salvata in “Apri”.</p>
+    <h2 id="dlg-modelli-titolo"><span class="ico" data-icon="layout-template" data-icon-size="20" aria-hidden="true"></span> Scegli un modello</h2>
+    <p class="dialog-hint">Si apre una nuova mappa già impostata: cambia i testi con i tuoi (doppio clic o F2). La mappa attuale resta salvata in “Mappe”.</p>
     <ul id="lista-modelli" class="template-list"></ul>
     <div class="dialog-actions">
       <button type="button" data-close>Chiudi</button>
@@ -109,14 +184,14 @@
   </dialog>
 
   <dialog id="dlg-accessibilita" class="dialog" aria-labelledby="dlg-accessibilita-titolo">
-    <h2 id="dlg-accessibilita-titolo">👓 Accessibilità</h2>
+    <h2 id="dlg-accessibilita-titolo"><span class="ico" data-icon="eye" data-icon-size="20" aria-hidden="true"></span> Accessibilità</h2>
     <p class="dialog-hint">Le modifiche si vedono subito. Valgono per questa mappa e per le prossime che creerai.</p>
     <form id="form-accessibilita" class="settings-form" onsubmit="return false">
       <fieldset>
         <legend>Tema</legend>
-        <label><input type="radio" name="theme" value="chiaro"> ☀️ Chiaro</label>
-        <label><input type="radio" name="theme" value="scuro"> 🌙 Scuro</label>
-        <label><input type="radio" name="theme" value="alto-contrasto"> ⬛ Alto contrasto</label>
+        <label><input type="radio" name="theme" value="chiaro"> <span class="ico" data-icon="sun" data-icon-size="16" aria-hidden="true"></span> Chiaro</label>
+        <label><input type="radio" name="theme" value="scuro"> <span class="ico" data-icon="moon" data-icon-size="16" aria-hidden="true"></span> Scuro</label>
+        <label><input type="radio" name="theme" value="alto-contrasto"> <span class="ico" data-icon="contrast" data-icon-size="16" aria-hidden="true"></span> Alto contrasto</label>
       </fieldset>
       <fieldset>
         <legend>Carattere</legend>
@@ -131,17 +206,91 @@
         <label for="acc-rate">Velocità di lettura: <output id="acc-rate-val">0,95×</output></label>
         <input type="range" id="acc-rate" name="rate" min="0.5" max="1.5" step="0.05">
         <p id="acc-voice-info" class="dialog-hint"></p>
-        <button type="button" id="acc-prova-voce">🔊 Prova la voce</button>
+        <button type="button" id="acc-prova-voce"><span class="ico" data-icon="volume" aria-hidden="true"></span> Prova la voce</button>
       </fieldset>
     </form>
     <div class="dialog-actions">
-      <button type="button" id="acc-ripristina">↺ Valori iniziali</button>
+      <button type="button" id="acc-ripristina"><span class="ico" data-icon="refresh" data-icon-size="16" aria-hidden="true"></span> Valori iniziali</button>
       <button type="button" data-close>Fatto</button>
     </div>
   </dialog>
 
+  <dialog id="dlg-sync" class="dialog" aria-labelledby="dlg-sync-titolo">
+    <h2 id="dlg-sync-titolo"><span class="ico" data-icon="cloud" data-icon-size="20" aria-hidden="true"></span> Sincronizzazione Mac ↔ iPad</h2>
+    <div id="sync-status-box" class="sync-status-box">
+      <span id="sync-modal-dot" class="sync-dot sync-dot-local" aria-hidden="true"></span>
+      <div class="sync-status-text">
+        <strong id="sync-status-title">Modalità locale</strong>
+        <p id="sync-status-desc" class="dialog-hint">Le mappe sono salvate solo su questo dispositivo.</p>
+      </div>
+    </div>
+
+    <div id="sync-auth-section" class="sync-section" hidden>
+      <form id="form-sync-auth" class="sync-form" onsubmit="return false">
+        <div class="field">
+          <label for="sync-email">Email</label>
+          <input type="email" id="sync-email" name="email" autocomplete="email" placeholder="nome@esempio.it" required>
+        </div>
+        <div class="field">
+          <label for="sync-password">Password</label>
+          <input type="password" id="sync-password" name="password" autocomplete="current-password" placeholder="Almeno 6 caratteri" minlength="6" required>
+        </div>
+        <div class="sync-btn-row">
+          <button type="submit" id="btn-sync-login" class="btn-primary">Accedi</button>
+          <button type="button" id="btn-sync-signup">Crea account</button>
+        </div>
+      </form>
+      <div class="sync-divider"><span>oppure</span></div>
+      <button type="button" id="btn-sync-google" class="btn-full">
+        <span class="ico" data-icon="user" aria-hidden="true"></span> Accedi con Google
+      </button>
+      <p class="dialog-hint sync-ipad-note">Su iPad come app installata è consigliato l'accesso con Email e Password.</p>
+    </div>
+
+    <div id="sync-account-section" class="sync-section" hidden>
+      <div class="sync-account-card">
+        <div class="sync-account-row">
+          <span class="ico" data-icon="user" aria-hidden="true"></span>
+          <span id="sync-user-email" class="sync-user-email"></span>
+        </div>
+        <p id="sync-last-time" class="dialog-hint"></p>
+      </div>
+      <div class="sync-btn-row">
+        <button type="button" id="btn-sync-now" class="btn-primary">
+          <span class="ico" data-icon="refresh" data-icon-size="16" aria-hidden="true"></span> Sincronizza ora
+        </button>
+        <button type="button" id="btn-sync-logout" class="danger">
+          <span class="ico" data-icon="logout" data-icon-size="16" aria-hidden="true"></span> Esci
+        </button>
+      </div>
+    </div>
+
+    <details id="sync-config-details" class="sync-config-details">
+      <summary><span class="ico" data-icon="settings" data-icon-size="16" aria-hidden="true"></span> Configurazione Firebase</summary>
+      <div class="sync-config-body">
+        <p class="dialog-hint">
+          Crea un progetto gratuito su <strong>console.firebase.google.com</strong>, abilita
+          <strong>Authentication</strong> (Email/Password o Google) e <strong>Cloud Firestore</strong>,
+          poi incolla qui l'oggetto <code>firebaseConfig</code> (oppure salvalo in <code>js/firebase-config.js</code>).
+        </p>
+        <div class="field">
+          <label for="sync-config-input">Oggetto firebaseConfig (JSON o snippet JS)</label>
+          <textarea id="sync-config-input" rows="5" spellcheck="false" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "...", "appId": "..."}'></textarea>
+        </div>
+        <div class="sync-btn-row">
+          <button type="button" id="btn-sync-save-cfg" class="btn-primary">Salva configurazione</button>
+          <button type="button" id="btn-sync-clear-cfg" class="danger">Rimuovi</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="dialog-actions">
+      <button type="button" data-close>Chiudi</button>
+    </div>
+  </dialog>
+
   <dialog id="dlg-aiuto" class="dialog" aria-labelledby="dlg-aiuto-titolo">
-    <h2 id="dlg-aiuto-titolo">❓ Come si usa</h2>
+    <h2 id="dlg-aiuto-titolo"><span class="ico" data-icon="help" data-icon-size="20" aria-hidden="true"></span> Come si usa</h2>
     <div class="help-columns">
       <section>
         <h3>Con il mouse o le dita</h3>
@@ -176,13 +325,11 @@
         </table>
       </section>
     </div>
-    <p class="dialog-hint">💾 Il lavoro viene salvato da solo mentre scrivi, in questo browser. Le mappe aperte
-      con un doppio clic sul file, quelle sul sito e quelle dell'app installata sono in archivi separati:
-      per spostarle usa Esporta → File mappa e poi Importa.</p>
+    <p class="dialog-hint">Il lavoro viene salvato da solo mentre scrivi, in questo browser. Per avere le stesse mappe su Mac e iPad attiva la Sincronizzazione dalla barra in alto, oppure usa Esporta → File mappa e poi Importa.</p>
     <section class="help-app">
-      <h3>📲 Usala come app</h3>
+      <h3><span class="ico" data-icon="smartphone" data-icon-size="18" aria-hidden="true"></span> Usala come app</h3>
       <p id="pwa-stato">Per installarla come app, aprila dal suo indirizzo web.</p>
-      <button type="button" id="btn-installa" hidden>📲 Installa l'app</button>
+      <button type="button" id="btn-installa" hidden><span class="ico" data-icon="smartphone" aria-hidden="true"></span> Installa l'app</button>
     </section>
     <div class="dialog-actions"><button type="button" data-close>Ho capito</button></div>
   </dialog>
@@ -191,9 +338,12 @@
 
   <!-- Script classici (non moduli ES) per funzionare anche aprendo il file con doppio clic. -->
   <script src="js/namespace.js" defer></script>
+  <script src="js/icons.js" defer></script>
   <script src="js/model.js" defer></script>
   <script src="js/history.js" defer></script>
   <script src="js/storage.js" defer></script>
+  <script src="js/firebase-config.js" defer></script>
+  <script src="js/sync.js" defer></script>
   <script src="js/layout.js" defer></script>
   <script src="js/viewport.js" defer></script>
   <script src="js/renderer.js" defer></script>

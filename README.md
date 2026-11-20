@@ -94,6 +94,40 @@ Se la memoria si riempie, l'app lo segnala: esporta ed elimina le mappe che non 
 
 ---
 
+## 4.1 Sincronizzazione tra Computer e iPad (Firebase)
+
+Puoi avere le stesse mappe aggiornate **in tempo reale** su Mac, Windows e iPad usando un progetto gratuito **Firebase** (piano Spark, €0). L'app resta **offline-first**: funziona sempre senza internet e sincronizza automaticamente appena sei online.
+
+### Configurazione una tantum (5 minuti)
+
+1. Vai su [console.firebase.google.com](https://console.firebase.google.com) e crea un nuovo progetto (puoi disattivare Google Analytics).
+2. Nel menu a sinistra apri **Build → Authentication** → *Get started*:
+   - In **Sign-in method** abilita **Email/Password** (consigliato anche per l'app installata su iPad).
+   - Facoltativo: abilita anche **Google** e aggiungi il tuo dominio GitHub Pages (es. `tuo-nome.github.io`) in *Settings → Authorized domains*.
+3. Nel menu a sinistra apri **Build → Firestore Database** → *Create database* → scegli la regione europea (`eur3` o `europe-west8`) e avvia in **Production mode**.
+4. Nella scheda **Rules** di Firestore incolla queste regole di sicurezza e premi **Publish** (così ogni utente può leggere e scrivere solo le proprie mappe):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/maps/{mapId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+5. Apri **Impostazioni progetto** (ingranaggio in alto a sinistra) → *Le tue app* → aggiungi una **Web app** (`</>`) → copia l'oggetto `firebaseConfig`.
+6. Inserisci la configurazione in uno di questi due modi:
+   - **Per tutti i dispositivi (consigliato)**: sostituisci `null` con il tuo oggetto `firebaseConfig` in `js/firebase-config.js`, incrementa `CACHE_VERSION` in `sw.js` e fai `git push`.
+   - **Solo da interfaccia**: apri il pulsante **Locale / Sync** nella barra in alto dell'app → *Configurazione Firebase* → incolla `firebaseConfig` → **Salva configurazione**.
+7. Accedi con la stessa Email e Password su Mac e iPad: le mappe si uniscono automaticamente e da quel momento ogni modifica si sincronizza in tempo reale.
+
+> Le chiavi client in `firebaseConfig` sono pubbliche per design: la sicurezza dei tuoi dati è garantita da Firebase Authentication e dalle Firestore Security Rules qui sopra.
+
+---
+
 ## 5. Installarla come app
 
 Quando l'app è aperta da un indirizzo web (GitHub Pages, paragrafo 6) o da `localhost`, si può installare: avrà la sua icona nel Dock o nella schermata Home, una finestra propria e funzionerà **senza internet**.
@@ -151,7 +185,7 @@ Serve un account GitHub gratuito (https://github.com). Il progetto è già un re
   sh tests/controlla-pwa.sh    # coerenza di sw.js, index.html, manifest e icone
   ```
 
-I test coprono: modello dati, annulla/ripristina, layout, salvataggio e importazione, modelli, esportazione, lettura vocale.
+I test coprono: modello dati, annulla/ripristina, layout, salvataggio e importazione, sincronizzazione e icone, modelli, esportazione, lettura vocale.
 
 ### Checklist di verifica manuale
 
@@ -182,6 +216,7 @@ mappe-mentali/
 ├── js/                    script classici sotto il namespace globale MM
 │   ├── model.js history.js storage.js layout.js templates.js   logica pura (testata)
 │   ├── viewport.js renderer.js interactions.js ui.js            disegno e interfaccia
+│   ├── icons.js firebase-config.js sync.js                      icone SVG e sincronizzazione cloud
 │   ├── speech.js exporter.js pwa.js                             voce, esportazione, app
 │   └── app.js                                                   avvio e coordinamento
 ├── icons/                 icone dell'app (genera-icone.sh le ricrea da icon.svg)

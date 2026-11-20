@@ -1,6 +1,6 @@
 /*
  * Mappe Mentali – interfaccia: barra degli strumenti, pannello delle proprietà,
- * finestre modali (elenco mappe, aiuto) e notifiche.
+ * finestre modali (elenco mappe, modelli, accessibilità, sincronizzazione, aiuto) e notifiche.
  * Tutte le azioni passano da MM.app: qui c'è solo la parte visiva.
  */
 (function (root) {
@@ -14,7 +14,6 @@
     '💬', '🗣️', '👤', '👥', '❤️', '🌱', '🐾', '☀️', '💧', '⚡'
   ];
   var SHAPE_LABELS = { rounded: 'Arrotondato', ellipse: 'Ovale', rect: 'Rettangolo' };
-  var SHAPE_ICONS = { rounded: '▢', ellipse: '⬭', rect: '▭' };
   // Etichette tipiche delle mappe concettuali (un clic per inserirle).
   var LINK_LABELS = ['causa', 'provoca', 'è formato da', 'è un tipo di', 'serve a', 'si oppone a', 'influenza', 'esempio'];
 
@@ -22,9 +21,14 @@
   var panel = null;
   var panelKey = null;          // selezione mostrata nel pannello
   var typing = null;            // { key } campo in cui si sta scrivendo (un solo passo di annulla)
+  var iconTab = 'simboli';      // 'simboli' | 'emoji'
 
   function $(sel, ctx) { return (ctx || document).querySelector(sel); }
   function $all(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
+
+  function ico(name, opts) {
+    return MM.icons ? MM.icons.createSvg(name, opts) : null;
+  }
 
   function h(tag, attrs, children) {
     var e = document.createElement(tag);
@@ -43,15 +47,16 @@
   /**
    * type: 'info' (predefinito) | 'successo' | 'avviso' | 'errore'.
    * action (facoltativa): { label, onClick, persistent } aggiunge un pulsante;
-   * con persistent la notifica resta finché non si preme il pulsante o ✕.
+   * con persistent la notifica resta finché non si preme il pulsante o la chiusura.
    */
   function toast(msg, type, action) {
     var box = document.getElementById('toasts');
     if (!box) return;
     var kind = type || 'info';
-    var icon = { info: 'ℹ️', successo: '✅', avviso: '⚠️', errore: '⛔' }[kind] || 'ℹ️';
+    var iconName = { info: 'info', successo: 'check-circle', avviso: 'alert-triangle', errore: 'alert-circle' }[kind] || 'info';
     var t = h('div', { 'class': 'toast toast-' + kind, role: kind === 'errore' ? 'alert' : null }, [
-      h('span', { 'aria-hidden': 'true', text: icon }), h('span', { text: msg })
+      ico(iconName, { size: 18 }),
+      h('span', { text: msg })
     ]);
     function remove() {
       t.classList.add('toast-out');
@@ -61,7 +66,9 @@
       t.classList.add('toast-action');
       t.appendChild(h('button', { type: 'button', on: { click: function () { remove(); action.onClick(); } } }, [action.label]));
       if (action.persistent) {
-        t.appendChild(h('button', { type: 'button', 'class': 'toast-close', 'aria-label': 'Chiudi', on: { click: remove } }, ['✕']));
+        t.appendChild(h('button', { type: 'button', 'class': 'toast-close', 'aria-label': 'Chiudi', on: { click: remove } }, [
+          ico('close', { size: 16 }) || '✕'
+        ]));
       }
     }
     box.appendChild(t);
@@ -138,14 +145,16 @@
       case 'adatta': app.fit(); break;
       case 'aiuto': openHelp(); break;
       case 'accessibilita': openSettings(); break;
+      case 'sync': openSync(); break;
+      case 'toggle-properties': app.toggleProperties(); break;
       case 'leggi-idea': app.readSelection(); break;
       case 'leggi-mappa': app.readMap(); break;
       case 'leggi-stop': app.stopReading(); break;
       default: return;
     }
     // Dopo un'azione sulla mappa il focus torna all'area di lavoro (tastiera pronta).
-    if (['apri', 'modelli', 'importa', 'aiuto', 'accessibilita'].indexOf(action) < 0 && !MM.interactions.isEditing() &&
-        !document.querySelector('dialog[open]') && map) {
+    if (['apri', 'modelli', 'importa', 'aiuto', 'accessibilita', 'sync', 'toggle-properties'].indexOf(action) < 0 &&
+        !MM.interactions.isEditing() && !document.querySelector('dialog[open]') && map) {
       document.getElementById('canvas').focus({ preventScroll: true });
     }
   }
@@ -173,7 +182,16 @@
       var b = $('[data-action="layout-' + k + '"]');
       if (b) b.setAttribute('aria-checked', String(map.settings.layout === k));
     });
-    // Le funzioni delle tappe successive restano nascoste finché il modulo non esiste.
+    // Aggiorna l'icona del pulsante Layout nella pillola flottante.
+    var layoutBtnIco = $('[data-menu="menu-layout"] .ico');
+    if (layoutBtnIco && MM.icons) {
+      var lSvg = ico(map.settings.layout === 'tree' ? 'layout-tree' : 'layout-radial', { size: 18 });
+      if (lSvg) { layoutBtnIco.textContent = ''; layoutBtnIco.appendChild(lSvg); }
+    }
+    if (typeof a.isPropertiesOpen === 'function') {
+      setPropertiesOpen(a.isPropertiesOpen());
+    }
+    // Le funzioni opzionali restano nascoste finché il modulo non esiste.
     $all('[data-needs]').forEach(function (b) { b.hidden = !MM[b.getAttribute('data-needs')]; });
     // Lettura vocale: visibile ma disattivata (con spiegazione) se il browser non la supporta.
     var speechBtn = $('[data-menu="menu-leggi"]');
@@ -182,6 +200,12 @@
       speechBtn.title = 'Questo browser non sa leggere ad alta voce: prova con Chrome, Edge o Safari';
     }
     set('leggi-stop', !!MM.speech && MM.speech.isSpeaking());
+  }
+
+  function setPropertiesOpen(open) {
+    if (panel) panel.classList.toggle('collapsed', !open);
+    var btn = document.getElementById('btn-toggle-props');
+    if (btn) btn.setAttribute('aria-pressed', String(!!open));
   }
 
   function setTitle(title) {
@@ -210,6 +234,19 @@
 
   function endTyping() { typing = null; }
 
+  function panelHeader(title, iconName) {
+    return h('div', { 'class': 'prop-header' }, [
+      h('h2', { 'class': 'prop-header-title' }, [ico(iconName, { size: 17 }), title]),
+      h('button', {
+        type: 'button',
+        'class': 'prop-close',
+        'data-action': 'toggle-properties',
+        title: 'Chiudi pannello Proprietà',
+        'aria-label': 'Chiudi pannello Proprietà'
+      }, [ico('close', { size: 16 })])
+    ]);
+  }
+
   function section(title, children) {
     return h('section', { 'class': 'prop-section' }, [h('h3', { text: title })].concat(children));
   }
@@ -234,7 +271,9 @@
     var isRoot = node.parentId === null;
     var parts = [];
 
-    parts.push(section(isRoot ? '⭐ Nodo centrale' : '✏️ Nodo', [
+    parts.push(panelHeader(isRoot ? 'Nodo centrale' : 'Nodo', isRoot ? 'logo' : 'file'));
+
+    parts.push(section('Contenuto', [
       textField('prop-testo', 'Testo', node.text, {
         multiline: true, rows: 2, max: MM.model.MAX_TEXT,
         onInput: function (v) {
@@ -251,7 +290,7 @@
 
     var colors = MM.model.PALETTE.concat(isRoot ? [MM.model.ROOT_COLOR] : []);
     if (colors.indexOf(node.color) < 0) colors.push(node.color);
-    parts.push(section('🎨 Colore', [
+    parts.push(section('Colore', [
       h('div', { 'class': 'swatches', role: 'radiogroup', 'aria-label': 'Colore del nodo' }, colors.map(function (c, i) {
         var selected = c.toLowerCase() === node.color.toLowerCase();
         return h('button', {
@@ -259,7 +298,7 @@
           'aria-checked': String(selected), 'aria-label': 'Colore ' + (i + 1), title: c,
           style: 'background:' + c + ';color:' + MM.model.textColorFor(c),
           on: { click: function () { app.updateNode(id, { color: c }); } }
-        }, [selected ? '✓' : '']);
+        }, [selected ? ico('check', { size: 14, strokeWidth: 2.5 }) : null]);
       })),
       !isRoot && node.children.length ? h('button', {
         type: 'button', 'class': 'link-button',
@@ -267,50 +306,84 @@
       }, ['Usa questo colore per tutto il ramo']) : null
     ]));
 
-    parts.push(section('🔷 Forma', [
+    parts.push(section('Forma', [
       h('div', { 'class': 'segmented', role: 'radiogroup', 'aria-label': 'Forma del nodo' }, MM.model.SHAPES.map(function (s) {
         var selected = node.shape === s;
         return h('button', {
           type: 'button', role: 'radio', 'aria-checked': String(selected), 'class': selected ? 'selected' : '',
           on: { click: function () { app.updateNode(id, { shape: s }, { relayout: true }); } }
-        }, [h('span', { 'aria-hidden': 'true', text: SHAPE_ICONS[s] + ' ' }), SHAPE_LABELS[s]]);
+        }, [SHAPE_LABELS[s]]);
       }))
     ]));
 
-    parts.push(emojiSection(node));
+    parts.push(iconSection(node));
     parts.push(linksSection(map, node));
     parts.push(actionsSection(node));
     return parts;
   }
 
-  function emojiSection(node) {
+  function iconSection(node) {
     var id = node.id;
-    var buttons = [h('button', {
-      type: 'button', 'class': 'emoji' + (!node.icon ? ' selected' : ''), title: 'Nessuna icona',
+    var tabs = h('div', { 'class': 'segmented icon-tabs', role: 'tablist', 'aria-label': 'Tipo di icona' }, [
+      h('button', {
+        type: 'button', role: 'tab', 'aria-selected': String(iconTab === 'simboli'),
+        'class': iconTab === 'simboli' ? 'selected' : '',
+        on: { click: function () { iconTab = 'simboli'; renderProperties(app.getMap(), { nodeId: id }, true); } }
+      }, ['Simboli']),
+      h('button', {
+        type: 'button', role: 'tab', 'aria-selected': String(iconTab === 'emoji'),
+        'class': iconTab === 'emoji' ? 'selected' : '',
+        on: { click: function () { iconTab = 'emoji'; renderProperties(app.getMap(), { nodeId: id }, true); } }
+      }, ['Emoji'])
+    ]);
+
+    var noneBtn = h('button', {
+      type: 'button', 'class': 'icon-choice' + (!node.icon ? ' selected' : ''), title: 'Nessuna icona',
       'aria-label': 'Nessuna icona', 'aria-pressed': String(!node.icon),
       on: { click: function () { app.updateNode(id, { icon: '' }, { relayout: true }); } }
-    }, ['∅'])].concat(EMOJI.map(function (em) {
-      return h('button', {
-        type: 'button', 'class': 'emoji' + (node.icon === em ? ' selected' : ''),
-        'aria-pressed': String(node.icon === em), 'aria-label': 'Icona ' + em,
-        on: { click: function () { app.updateNode(id, { icon: em }, { relayout: true }); } }
-      }, [em]);
-    }));
-    return section('😀 Icona', [h('div', { 'class': 'emoji-grid' }, buttons)]);
+    }, [ico('close', { size: 15 }) || '∅']);
+
+    var buttons = [noneBtn];
+    if (iconTab === 'simboli' && MM.icons && MM.icons.NODE_ICONS) {
+      MM.icons.NODE_ICONS.forEach(function (item) {
+        var val = 'svg:' + item.id;
+        var selected = node.icon === val;
+        buttons.push(h('button', {
+          type: 'button', 'class': 'icon-choice' + (selected ? ' selected' : ''),
+          title: item.label, 'aria-label': item.label, 'aria-pressed': String(selected),
+          on: { click: function () { app.updateNode(id, { icon: val }, { relayout: true }); } }
+        }, [MM.icons.createSvg(item.id, { node: true, size: 17 })]));
+      });
+    } else {
+      EMOJI.forEach(function (em) {
+        var selected = node.icon === em;
+        buttons.push(h('button', {
+          type: 'button', 'class': 'icon-choice' + (selected ? ' selected' : ''),
+          'aria-pressed': String(selected), 'aria-label': 'Emoji ' + em,
+          on: { click: function () { app.updateNode(id, { icon: em }, { relayout: true }); } }
+        }, [em]));
+      });
+    }
+
+    return section('Icona', [tabs, h('div', { 'class': 'icon-grid' }, buttons)]);
   }
 
   function actionsSection(node) {
     var id = node.id;
     var actions = [];
     if (node.children.length) {
-      actions.push(h('button', { type: 'button', on: { click: function () { app.toggleCollapsed(id); } } },
-        [node.collapsed ? '📂 Espandi il ramo' : '📁 Comprimi il ramo']));
+      actions.push(h('button', { type: 'button', on: { click: function () { app.toggleCollapsed(id); } } }, [
+        ico(node.collapsed ? 'folder-open' : 'folder', { size: 16 }),
+        node.collapsed ? 'Espandi il ramo' : 'Comprimi il ramo'
+      ]));
     }
     if (node.parentId !== null) {
-      actions.push(h('button', { type: 'button', 'class': 'danger', on: { click: function () { app.deleteSelection(); } } },
-        ['🗑️ Elimina' + (node.children.length ? ' (con il ramo)' : '')]));
+      actions.push(h('button', { type: 'button', 'class': 'danger', on: { click: function () { app.deleteSelection(); } } }, [
+        ico('trash', { size: 16 }),
+        'Elimina' + (node.children.length ? ' (con il ramo)' : '')
+      ]));
     }
-    return actions.length ? section('⚙️ Azioni', [h('div', { 'class': 'prop-actions' }, actions)]) : null;
+    return actions.length ? section('Azioni', [h('div', { 'class': 'prop-actions' }, actions)]) : null;
   }
 
   function applyColorToBranch(nodeId) {
@@ -325,31 +398,36 @@
   function linkPanel(map, link) {
     var from = map.nodes[link.fromId];
     var to = map.nodes[link.toId];
-    return [section('🔗 Collegamento', [
-      h('p', { 'class': 'prop-hint', text: '«' + from.text + '» → «' + to.text + '»' }),
-      textField('prop-etichetta', 'Etichetta (es. “causa”, “è formato da”)', link.label, {
-        max: MM.model.MAX_TEXT, placeholder: 'Scrivi il legame…',
-        onInput: function (v) {
-          liveUpdate('link:' + link.id, function (m) { return MM.model.updateLink(m, link.id, { label: v }); });
-        }
-      }),
-      h('div', { 'class': 'label-suggestions', role: 'group', 'aria-label': 'Etichette frequenti' },
-        LINK_LABELS.map(function (lbl) {
-          return h('button', {
-            type: 'button', 'class': 'chip',
-            on: { click: function () { app.tryCommit(function (m) { return MM.model.updateLink(m, link.id, { label: lbl }); }); } }
-          }, [lbl]);
-        })),
-      h('div', { 'class': 'prop-actions' }, [
-        h('button', { type: 'button', on: { click: function () {
-          app.tryCommit(function (m) { return MM.model.reverseLink(m, link.id); });
-        } } }, ['🔄 Inverti la freccia']),
-        h('button', { type: 'button', on: { click: function () { app.select(link.fromId); } } },
-          ['⬅️ Vai al primo nodo']),
-        h('button', { type: 'button', 'class': 'danger', on: { click: function () { app.deleteSelection(); } } },
-          ['🗑️ Elimina collegamento'])
+    return [
+      panelHeader('Collegamento', 'link'),
+      section('Dettagli', [
+        h('p', { 'class': 'prop-hint', text: '«' + from.text + '» → «' + to.text + '»' }),
+        textField('prop-etichetta', 'Etichetta (es. “causa”, “è formato da”)', link.label, {
+          max: MM.model.MAX_TEXT, placeholder: 'Scrivi il legame…',
+          onInput: function (v) {
+            liveUpdate('link:' + link.id, function (m) { return MM.model.updateLink(m, link.id, { label: v }); });
+          }
+        }),
+        h('div', { 'class': 'label-suggestions', role: 'group', 'aria-label': 'Etichette frequenti' },
+          LINK_LABELS.map(function (lbl) {
+            return h('button', {
+              type: 'button', 'class': 'chip',
+              on: { click: function () { app.tryCommit(function (m) { return MM.model.updateLink(m, link.id, { label: lbl }); }); } }
+            }, [lbl]);
+          })),
+        h('div', { 'class': 'prop-actions' }, [
+          h('button', { type: 'button', on: { click: function () {
+            app.tryCommit(function (m) { return MM.model.reverseLink(m, link.id); });
+          } } }, [ico('switch', { size: 16 }), 'Inverti la freccia']),
+          h('button', { type: 'button', on: { click: function () { app.select(link.fromId); } } }, [
+            ico('arrow-left', { size: 16 }), 'Vai al primo nodo'
+          ]),
+          h('button', { type: 'button', 'class': 'danger', on: { click: function () { app.deleteSelection(); } } }, [
+            ico('trash', { size: 16 }), 'Elimina collegamento'
+          ])
+        ])
       ])
-    ])];
+    ];
   }
 
   /** Collegamenti trasversali del nodo, con pulsante per crearne uno nuovo. */
@@ -364,11 +442,12 @@
         on: { click: function () { app.selectLink(l.id); } }
       }, [text])]);
     });
-    return section('🔗 Collegamenti', [
+    return section('Collegamenti', [
       links.length ? h('ul', { 'class': 'link-list' }, items)
         : h('p', { 'class': 'prop-hint', text: 'Collega questa idea a un\'altra di un ramo diverso (es. «causa», «è formato da»).' }),
-      h('button', { type: 'button', on: { click: function () { MM.interactions.startLinkMode(); } } },
-        ['🔗 Collega a un altro nodo (L)'])
+      h('button', { type: 'button', on: { click: function () { MM.interactions.startLinkMode(); } } }, [
+        ico('link', { size: 16 }), 'Collega a un altro nodo (L)'
+      ])
     ]);
   }
 
@@ -376,14 +455,14 @@
    * Aggiorna il pannello. Se l'utente sta scrivendo in un campo del pannello,
    * il pannello non viene ricostruito (per non perdere cursore e focus).
    */
-  function renderProperties(map, selection) {
+  function renderProperties(map, selection, forceRebuild) {
     if (!panel || !map) return;
     var sel = selection || {};
     var link = sel.linkId ? app.findLink(sel.linkId) : null;
     var node = !link && sel.nodeId ? map.nodes[sel.nodeId] : null;
     var key = link ? 'l:' + link.id : node ? 'n:' + node.id : '';
     var active = document.activeElement;
-    if (key === panelKey && active && panel.contains(active) &&
+    if (!forceRebuild && key === panelKey && active && panel.contains(active) &&
         (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
       return;
     }
@@ -398,6 +477,9 @@
   }
 
   function focusLinkLabel() {
+    if (app && typeof app.toggleProperties === 'function' && !app.isPropertiesOpen()) {
+      app.toggleProperties(true);
+    }
     var input = document.getElementById('prop-etichetta');
     if (input) { input.focus(); input.select(); }
   }
@@ -406,6 +488,7 @@
 
   function openDialog(dlg) {
     closeMenus();
+    if (!dlg) return;
     if (typeof dlg.showModal === 'function') dlg.showModal();
     else dlg.setAttribute('open', '');
   }
@@ -428,6 +511,7 @@
 
   function fillMapList() {
     var list = document.getElementById('lista-mappe');
+    if (!list) return;
     list.textContent = '';
     var current = app.getMap();
     var maps = MM.storage.listMaps();
@@ -450,13 +534,14 @@
           click: function () {
             try {
               if (isCurrent) app.saveNow();
-              MM.storage.duplicateMap(s.id);
+              var copy = MM.storage.duplicateMap(s.id);
+              if (MM.sync && copy) MM.sync.pushMap(copy);
               toast('Copia creata', 'successo');
               fillMapList();
             } catch (e) { toast(e.message, 'errore'); }
           }
         }
-      }, ['📑']);
+      }, [ico('copy', { size: 16 })]);
       var del = h('button', {
         type: 'button', 'class': 'danger', title: 'Elimina', 'aria-label': 'Elimina ' + s.title,
         on: {
@@ -467,9 +552,14 @@
             fillMapList();
           }
         }
-      }, ['🗑️']);
+      }, [ico('trash', { size: 16 })]);
       list.appendChild(h('li', { 'class': isCurrent ? 'current' : '' }, [open, dup, del]));
     });
+  }
+
+  function refreshMapList() {
+    var dlg = document.getElementById('dlg-mappe');
+    if (dlg && dlg.open) fillMapList();
   }
 
   function openMapList() {
@@ -481,6 +571,247 @@
   function openHelp() {
     if (MM.pwa) MM.pwa.refreshHelp();
     openDialog(document.getElementById('dlg-aiuto'));
+  }
+
+  /* ---------- Sincronizzazione ---------- */
+
+  function syncDotClass(status) {
+    if (status === 'synced') return 'sync-dot sync-dot-synced';
+    if (status === 'syncing' || status === 'connecting') return 'sync-dot sync-dot-syncing';
+    if (status === 'offline') return 'sync-dot sync-dot-offline';
+    if (status === 'error') return 'sync-dot sync-dot-error';
+    return 'sync-dot sync-dot-local';
+  }
+
+  function syncIconName(status) {
+    if (status === 'synced') return 'cloud-check';
+    if (status === 'offline') return 'cloud-off';
+    return 'cloud';
+  }
+
+  function syncShortLabel(s) {
+    switch (s.status) {
+      case 'synced': return 'Sincronizzato';
+      case 'syncing': return 'Sincronizzo…';
+      case 'connecting': return 'Connessione…';
+      case 'offline': return 'Offline';
+      case 'error': return 'Errore sync';
+      case 'signed-out': return 'Accedi';
+      default: return 'Locale';
+    }
+  }
+
+  function updateSyncUi(s) {
+    if (!s) return;
+    // 1. Pulsante nella barra superiore
+    var badge = document.getElementById('sync-badge');
+    var icoHost = document.getElementById('sync-ico');
+    var label = document.getElementById('sync-label');
+    var btn = document.getElementById('btn-sync');
+    if (badge) badge.className = syncDotClass(s.status);
+    if (icoHost && MM.icons) {
+      var svg = ico(syncIconName(s.status), { size: 18 });
+      if (svg) { icoHost.textContent = ''; icoHost.appendChild(svg); }
+    }
+    if (label) label.textContent = syncShortLabel(s);
+    if (btn) {
+      btn.title = s.user
+        ? 'Sincronizzazione attiva (' + (s.user.email || 'account connesso') + ')'
+        : 'Sincronizzazione Mac ↔ iPad: ' + syncShortLabel(s);
+    }
+
+    // 2. Contenuto della finestra #dlg-sync
+    var dot = document.getElementById('sync-modal-dot');
+    var titleEl = document.getElementById('sync-status-title');
+    var descEl = document.getElementById('sync-status-desc');
+    var authSec = document.getElementById('sync-auth-section');
+    var accSec = document.getElementById('sync-account-section');
+    var cfgDetails = document.getElementById('sync-config-details');
+    var clearBtn = document.getElementById('btn-sync-clear-cfg');
+    var userEmailEl = document.getElementById('sync-user-email');
+    var lastTimeEl = document.getElementById('sync-last-time');
+    if (!dot || !titleEl || !descEl) return;
+
+    dot.className = syncDotClass(s.status);
+
+    var title = 'Modalità locale';
+    var desc = 'Le mappe sono salvate solo in questo browser.';
+    if (!s.supported) {
+      title = 'Sincronizzazione non disponibile da file locale';
+      desc = 'Apri l\'app dal sito web (GitHub Pages o localhost) per sincronizzare tra Mac e iPad.';
+    } else if (s.status === 'unconfigured') {
+      title = 'Firebase non configurato';
+      desc = 'Incolla la tua configurazione Firebase qui sotto per sincronizzare le mappe tra Mac e iPad.';
+    } else if (s.status === 'connecting') {
+      title = 'Connessione a Firebase…';
+      desc = 'Preparo il servizio di sincronizzazione.';
+    } else if (s.status === 'signed-out') {
+      title = 'Pronto per accedere';
+      desc = 'Accedi con lo stesso account su Mac e iPad per tenere le mappe sincronizzate in tempo reale.';
+    } else if (s.status === 'synced') {
+      title = 'Sincronizzato in tempo reale';
+      desc = 'Ogni modifica viene salvata sul cloud e appare subito sugli altri dispositivi.';
+    } else if (s.status === 'syncing') {
+      title = 'Sincronizzazione in corso…';
+      desc = 'Invio o ricezione delle mappe aggiornate.';
+    } else if (s.status === 'offline') {
+      title = 'Offline (modifiche in coda)';
+      desc = 'Continua pure a lavorare: le modifiche verranno sincronizzate appena torna la connessione.';
+    } else if (s.status === 'error') {
+      title = 'Errore di sincronizzazione';
+      desc = s.error || 'Impossibile completare la sincronizzazione.';
+    }
+
+    titleEl.textContent = title;
+    descEl.textContent = desc;
+
+    var hasUser = !!s.user;
+    var canAuth = s.supported && !hasUser && s.status !== 'unconfigured' && s.status !== 'connecting';
+    if (authSec) authSec.hidden = !canAuth;
+    if (accSec) accSec.hidden = !hasUser;
+    if (hasUser) {
+      if (userEmailEl) userEmailEl.textContent = s.user.email || s.user.displayName || s.user.uid;
+      if (lastTimeEl) {
+        lastTimeEl.textContent = s.lastSyncAt
+          ? 'Ultimo aggiornamento: ' + formatDate(s.lastSyncAt)
+          : 'In attesa del primo aggiornamento…';
+      }
+    }
+    if (cfgDetails && s.supported && s.status === 'unconfigured') {
+      cfgDetails.open = true;
+    }
+    if (clearBtn) {
+      clearBtn.disabled = s.configSource !== 'local';
+    }
+  }
+
+  function openSync() {
+    if (MM.sync) {
+      var st = MM.sync.getState();
+      updateSyncUi(st);
+      var cfgInput = document.getElementById('sync-config-input');
+      if (cfgInput && !cfgInput.value) {
+        var cfg = MM.sync.getConfig();
+        if (cfg && st.configSource === 'local') cfgInput.value = JSON.stringify(cfg, null, 2);
+      }
+    }
+    openDialog(document.getElementById('dlg-sync'));
+  }
+
+  function bindSync() {
+    var dlg = document.getElementById('dlg-sync');
+    if (!dlg || !MM.sync) return;
+
+    var form = document.getElementById('form-sync-auth');
+    var emailInput = document.getElementById('sync-email');
+    var passInput = document.getElementById('sync-password');
+    var loginBtn = document.getElementById('btn-sync-login');
+    var signupBtn = document.getElementById('btn-sync-signup');
+    var googleBtn = document.getElementById('btn-sync-google');
+    var syncNowBtn = document.getElementById('btn-sync-now');
+    var logoutBtn = document.getElementById('btn-sync-logout');
+    var cfgInput = document.getElementById('sync-config-input');
+    var saveCfgBtn = document.getElementById('btn-sync-save-cfg');
+    var clearCfgBtn = document.getElementById('btn-sync-clear-cfg');
+    var cfgDetails = document.getElementById('sync-config-details');
+
+    function setAuthBusy(busy) {
+      [loginBtn, signupBtn, googleBtn].forEach(function (b) { if (b) b.disabled = busy; });
+    }
+
+    function credentials() {
+      var email = emailInput ? emailInput.value.trim() : '';
+      var pass = passInput ? passInput.value : '';
+      if (!email) { toast('Inserisci la tua email', 'avviso'); if (emailInput) emailInput.focus(); return null; }
+      if (pass.length < 6) { toast('La password deve avere almeno 6 caratteri', 'avviso'); if (passInput) passInput.focus(); return null; }
+      return { email: email, pass: pass };
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var c = credentials();
+        if (!c) return;
+        setAuthBusy(true);
+        MM.sync.signInWithEmail(c.email, c.pass).then(function () {
+          if (passInput) passInput.value = '';
+          toast('Accesso effettuato: sincronizzazione attiva', 'successo');
+        }).catch(function (err) {
+          toast(err.message, 'errore');
+        }).then(function () { setAuthBusy(false); });
+      });
+    }
+
+    if (signupBtn) {
+      signupBtn.addEventListener('click', function () {
+        var c = credentials();
+        if (!c) return;
+        setAuthBusy(true);
+        MM.sync.signUpWithEmail(c.email, c.pass).then(function () {
+          if (passInput) passInput.value = '';
+          toast('Account creato: sincronizzazione attiva', 'successo');
+        }).catch(function (err) {
+          toast(err.message, 'errore');
+        }).then(function () { setAuthBusy(false); });
+      });
+    }
+
+    if (googleBtn) {
+      googleBtn.addEventListener('click', function () {
+        setAuthBusy(true);
+        MM.sync.signInWithGoogle().then(function () {
+          toast('Accesso con Google riuscito', 'successo');
+        }).catch(function (err) {
+          toast(err.message, 'errore');
+        }).then(function () { setAuthBusy(false); });
+      });
+    }
+
+    if (syncNowBtn) {
+      syncNowBtn.addEventListener('click', function () {
+        app.saveNow();
+        MM.sync.syncNow().then(function () {
+          toast('Sincronizzazione completata', 'successo');
+        });
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function () {
+        MM.sync.signOut().then(function () {
+          toast('Disconnesso. Le mappe restano salvate su questo dispositivo.');
+        }).catch(function (err) {
+          toast(err.message, 'errore');
+        });
+      });
+    }
+
+    if (saveCfgBtn) {
+      saveCfgBtn.addEventListener('click', function () {
+        var raw = cfgInput ? cfgInput.value : '';
+        try {
+          MM.sync.saveConfig(raw).then(function (ok) {
+            if (ok) {
+              toast('Configurazione Firebase salvata', 'successo');
+              if (cfgDetails) cfgDetails.open = false;
+            }
+          });
+        } catch (err) {
+          toast(err.message, 'errore');
+        }
+      });
+    }
+
+    if (clearCfgBtn) {
+      clearCfgBtn.addEventListener('click', function () {
+        if (!root.confirm('Rimuovere la configurazione Firebase salvata in questo browser?')) return;
+        MM.sync.clearConfig();
+        if (cfgInput) cfgInput.value = '';
+        toast('Configurazione rimossa');
+      });
+    }
+
+    MM.sync.onStatusChange(updateSyncUi);
   }
 
   /* ---------- Accessibilità ---------- */
@@ -564,6 +895,9 @@
     var list = document.getElementById('lista-modelli');
     list.textContent = '';
     MM.templates.list().forEach(function (t) {
+      var iconEl = MM.icons && MM.icons.isVectorIcon(t.icon)
+        ? h('span', { 'class': 'template-icon', 'aria-hidden': 'true' }, [MM.icons.createSvg(MM.icons.vectorId(t.icon), { node: true, size: 24 })])
+        : h('span', { 'class': 'template-icon', 'aria-hidden': 'true', text: t.icon });
       list.appendChild(h('li', null, [h('button', {
         type: 'button', 'class': 'template-card',
         on: {
@@ -574,7 +908,7 @@
           }
         }
       }, [
-        h('span', { 'class': 'template-icon', 'aria-hidden': 'true', text: t.icon }),
+        iconEl,
         h('span', { 'class': 'template-name', text: t.name }),
         h('span', { 'class': 'template-desc', text: t.description })
       ])]));
@@ -588,6 +922,7 @@
   function init(appApi) {
     app = appApi;
     panel = document.getElementById('properties');
+    if (MM.icons) MM.icons.hydrate(document);
 
     document.addEventListener('click', function (e) {
       var menuBtn = e.target.closest('[data-menu]');
@@ -621,6 +956,7 @@
     app.state.viewport.onChange(updateZoom);
     updateZoom(app.state.viewport.getState());
     bindSettings();
+    bindSync();
     if (MM.speech) {
       MM.speech.onChange(function (speaking) {
         var b = $('[data-menu="menu-leggi"]');
@@ -636,11 +972,14 @@
     toast: toast,
     renderProperties: renderProperties,
     updateToolbarState: updateToolbarState,
+    setPropertiesOpen: setPropertiesOpen,
     setTitle: setTitle,
     openMapList: openMapList,
+    refreshMapList: refreshMapList,
     openHelp: openHelp,
     openTemplates: openTemplates,
     openSettings: openSettings,
+    openSync: openSync,
     focusLinkLabel: focusLinkLabel,
     closeMenus: closeMenus
   };

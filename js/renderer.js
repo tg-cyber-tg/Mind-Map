@@ -11,8 +11,8 @@
   var NS = 'http://www.w3.org/2000/svg';
 
   var BASE_FONT = 16;
-  var PAD_X = 16;
-  var PAD_Y = 10;
+  var PAD_X = 18;
+  var PAD_Y = 11;
   var LINE_H = 1.35;
 
   function el(name, attrs, parent) {
@@ -34,11 +34,15 @@
     return Math.round(BASE_FONT * scale * (node.parentId === null ? 1.25 : 1) * 10) / 10;
   }
 
+  function hasVectorIcon(node) {
+    return !!(MM.icons && MM.icons.isVectorIcon(node.icon));
+  }
+
   /** Righe da disegnare: emoji in testa alla prima riga, maiuscolo se richiesto. */
   function linesFor(node, settings) {
     var text = settings && settings.uppercase ? node.text.toLocaleUpperCase('it-IT') : node.text;
     var lines = MM.layout.wrapText(text, MM.layout.WRAP_CHARS);
-    if (node.icon) lines[0] = node.icon + (lines[0] ? ' ' + lines[0] : '');
+    if (node.icon && !hasVectorIcon(node)) lines[0] = node.icon + (lines[0] ? ' ' + lines[0] : '');
     return lines;
   }
 
@@ -48,6 +52,19 @@
     var out = '#';
     for (var i = 1; i < 7; i += 2) {
       var c = Math.round(parseInt(hex.substr(i, 2), 16) * k);
+      out += (c < 16 ? '0' : '') + c.toString(16);
+    }
+    return out;
+  }
+
+  /** Mescola due colori #RRGGBB: ratio = peso di baseHex (0..1). */
+  function mixHex(hex, baseHex, ratio) {
+    var t = Math.max(0, Math.min(1, ratio));
+    var out = '#';
+    for (var i = 1; i < 7; i += 2) {
+      var a = parseInt(hex.substr(i, 2), 16);
+      var b = parseInt(baseHex.substr(i, 2), 16);
+      var c = Math.round(a * (1 - t) + b * t);
       out += (c < 16 ? '0' : '') + c.toString(16);
     }
     return out;
@@ -95,12 +112,21 @@
     var linkEls = {};
     var highlighted = null;
 
+    if (!svgEl.querySelector('#mm-node-shadow')) {
+      var flt = el('filter', {
+        id: 'mm-node-shadow', x: '-15%', y: '-20%', width: '130%', height: '150%'
+      }, defs);
+      el('feDropShadow', {
+        dx: 0, dy: 2, stdDeviation: 3.5, 'flood-color': '#0f172a', 'flood-opacity': '0.08'
+      }, flt);
+    }
+
     if (!svgEl.querySelector('#mm-arrow')) {
       var marker = el('marker', {
-        id: 'mm-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5,
+        id: 'mm-arrow', viewBox: '0 0 10 10', refX: 8.5, refY: 5,
         markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse'
       }, defs);
-      el('path', { d: 'M0 0 L10 5 L0 10 z', 'class': 'link-arrow' }, marker);
+      el('path', { d: 'M1 2 L9 5 L1 8 L3 5 z', 'class': 'link-arrow' }, marker);
     }
 
     function lineWidth(line, fontSize, bold) {
@@ -117,11 +143,20 @@
       var s = settings || MM.model.DEFAULT_SETTINGS;
       var fontSize = fontSizeFor(node, s);
       var lines = linesFor(node, s);
-      var key = [lines.join('\n'), fontSize, node.shape, node.parentId === null, s.fontFamily].join('|');
+      var isRoot = node.parentId === null;
+      var isVec = hasVectorIcon(node);
+      var key = [lines.join('\n'), fontSize, node.shape, isRoot, isVec, s.fontFamily].join('|');
       if (measureCache[key]) return measureCache[key];
       var maxW = 0;
-      for (var i = 0; i < lines.length; i++) maxW = Math.max(maxW, lineWidth(lines[i], fontSize, node.parentId === null));
-      if (!maxW) return MM.layout.estimateNode(node, s); // SVG non ancora visibile: non salvare in cache
+      var rawAny = false;
+      var iconSize = Math.round(fontSize * 1.1);
+      for (var i = 0; i < lines.length; i++) {
+        var lw = lineWidth(lines[i], fontSize, isRoot);
+        if (lw > 0) rawAny = true;
+        if (i === 0 && isVec) lw += iconSize + (lines[0] ? 8 : 0);
+        maxW = Math.max(maxW, lw);
+      }
+      if ((!rawAny && lines.join('').trim()) || !maxW) return MM.layout.estimateNode(node, s); // SVG non ancora visibile: non salvare in cache
       var w = Math.max(60, maxW + 2 * PAD_X);
       var h = Math.max(40, lines.length * fontSize * LINE_H + 2 * PAD_Y);
       if (node.shape === 'ellipse') { w *= 1.3; h *= 1.4; }
@@ -134,7 +169,7 @@
     function clearCache() { measureCache = {}; }
 
     /** Crea o aggiorna la forma di sfondo del nodo. */
-    function drawShape(g, node, size) {
+    function drawShape(g, node, size, settings) {
       var shapeEl = g.firstChild;
       var tag = node.shape === 'ellipse' ? 'ellipse' : 'rect';
       if (!shapeEl || shapeEl.tagName !== tag) {
@@ -142,57 +177,125 @@
         if (shapeEl) g.replaceChild(fresh, shapeEl); else g.insertBefore(fresh, g.firstChild);
         shapeEl = fresh;
       }
+      var isRoot = node.parentId === null;
+      var theme = (settings && settings.theme) || 'chiaro';
       if (tag === 'ellipse') {
         setAttrs(shapeEl, { cx: 0, cy: 0, rx: size.width / 2, ry: size.height / 2 });
       } else {
         setAttrs(shapeEl, {
           x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height,
-          rx: node.shape === 'rounded' ? 12 : 2
+          rx: node.shape === 'rounded' ? (isRoot ? 14 : 11) : 4
         });
       }
-      setAttrs(shapeEl, { fill: node.color, stroke: darken(node.color, 0.3) });
+      var fillColor, strokeColor, strokeW;
+      if (isRoot) {
+        fillColor = node.color;
+        strokeColor = darken(node.color, 0.15);
+        strokeW = 1.5;
+      } else {
+        fillColor = theme === 'alto-contrasto'
+          ? '#000000'
+          : (theme === 'scuro' ? mixHex(node.color, '#1E293B', 0.80) : mixHex(node.color, '#FFFFFF', 0.91));
+        strokeColor = node.color;
+        strokeW = 1.75;
+      }
+      setAttrs(shapeEl, {
+        fill: fillColor,
+        stroke: strokeColor,
+        'stroke-width': strokeW,
+        filter: theme === 'alto-contrasto' ? null : 'url(#mm-node-shadow)'
+      });
     }
 
     function drawText(g, node, settings) {
+      var oldIcon = g.querySelector('.node-icon');
+      if (oldIcon) g.removeChild(oldIcon);
       var textEl = g.querySelector('.node-text');
       if (!textEl) textEl = el('text', { 'class': 'node-text', 'text-anchor': 'middle' }, g);
       var fontSize = fontSizeFor(node, settings);
       var lines = linesFor(node, settings);
       var lineH = fontSize * LINE_H;
+      var isRoot = node.parentId === null;
+      var theme = (settings && settings.theme) || 'chiaro';
+      var textFill = isRoot
+        ? MM.model.textColorFor(node.color)
+        : (theme === 'scuro' ? '#F8FAFC' : (theme === 'alto-contrasto' ? '#FFFFFF' : '#0F172A'));
       setAttrs(textEl, {
         'font-size': fontSize,
-        'font-weight': node.parentId === null ? 'bold' : 'normal',
-        fill: MM.model.textColorFor(node.color)
+        'font-weight': isRoot ? 'bold' : 'normal',
+        fill: textFill
       });
       textEl.textContent = '';
       var firstY = -((lines.length - 1) * lineH) / 2;
+      var isVec = hasVectorIcon(node);
+      var iconShiftX = 0;
+      if (isVec) {
+        var iconSize = Math.round(fontSize * 1.1);
+        var iconGap = 8;
+        var hasText0 = !!lines[0];
+        var t0w = hasText0 ? (lineWidth(lines[0], fontSize, isRoot) || lines[0].length * fontSize * 0.55) : 0;
+        var totalW = iconSize + (hasText0 ? iconGap + t0w : 0);
+        var iconX = -totalW / 2;
+        var iconY = firstY - iconSize / 2;
+        var scale = iconSize / 24;
+        var iconColor = isRoot ? MM.model.textColorFor(node.color) : node.color;
+        var iconG = el('g', {
+          'class': 'node-icon',
+          transform: 'translate(' + iconX.toFixed(1) + ' ' + iconY.toFixed(1) + ') scale(' + scale.toFixed(4) + ')',
+          fill: 'none',
+          stroke: iconColor,
+          'stroke-width': '2',
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round'
+        }, g);
+        iconG.innerHTML = MM.icons.nodePaths(MM.icons.vectorId(node.icon));
+        iconShiftX = hasText0 ? (iconSize + iconGap) / 2 : 0;
+      }
       lines.forEach(function (line, i) {
-        var t = el('tspan', { x: 0, y: firstY + i * lineH, 'dominant-baseline': 'central' }, textEl);
+        var t = el('tspan', {
+          x: i === 0 ? iconShiftX : 0,
+          y: firstY + i * lineH,
+          'dominant-baseline': 'central'
+        }, textEl);
         t.textContent = line || '\u00a0';
       });
     }
 
-    /** Indicatori: "+N" sui nodi compressi, 📝 se c'è una nota. */
+    /** Indicatori: "+N" sui nodi compressi, icona nota se c'è una nota. */
     function drawBadges(g, map, node, size) {
       var old = g.querySelectorAll('.node-badge');
       for (var i = 0; i < old.length; i++) g.removeChild(old[i]);
       if (node.collapsed && node.children.length) {
         var n = MM.model.getDescendants(map, node.id).length;
         var b = el('g', { 'class': 'node-badge badge-collapsed', transform: 'translate(' + (size.width / 2) + ' 0)' }, g);
-        el('circle', { r: 13 }, b);
+        el('circle', { r: 12, stroke: node.color }, b);
         el('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 11 }, b).textContent = '+' + n;
       }
       if (node.note) {
-        var nb = el('text', {
-          'class': 'node-badge badge-note', 'text-anchor': 'middle', 'dominant-baseline': 'central',
-          x: size.width / 2 - 6, y: -size.height / 2 + 4, 'font-size': 14
+        var nb = el('g', {
+          'class': 'node-badge badge-note',
+          transform: 'translate(' + (size.width / 2 - 4) + ' ' + (-size.height / 2 + 4) + ')'
         }, g);
-        nb.textContent = '📝';
+        el('circle', { r: 10, stroke: node.color }, nb);
+        var notePaths = MM.icons && MM.icons.uiPaths('note');
+        if (notePaths) {
+          var ni = el('g', {
+            'class': 'badge-note-icon',
+            transform: 'translate(-6 -6) scale(0.5)',
+            fill: 'none',
+            stroke: node.color,
+            'stroke-width': '2.2',
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round'
+          }, nb);
+          ni.innerHTML = notePaths;
+        }
       }
     }
 
     function nodeLabel(map, node) {
-      var label = (node.icon ? node.icon + ' ' : '') + node.text.replace(/\s*\n\s*/g, ' ');
+      var iconPrefix = node.icon && !hasVectorIcon(node) ? node.icon + ' ' : '';
+      var label = iconPrefix + node.text.replace(/\s*\n\s*/g, ' ');
       if (node.parentId === null) label = 'Nodo centrale: ' + label;
       if (node.children.length) {
         label += node.collapsed ? ', ramo compresso con ' + node.children.length + ' sotto-idee'
@@ -211,9 +314,9 @@
       var size = measure(node, map.settings);
       var sig = JSON.stringify([node.text, node.icon, node.note, node.color, node.shape, node.collapsed,
         node.children.length, map.settings.fontScale, map.settings.uppercase, map.settings.fontFamily,
-        size.width, size.height]);
+        map.settings.theme, size.width, size.height]);
       if (g.__sig !== sig) {
-        drawShape(g, node, size);
+        drawShape(g, node, size, map.settings);
         drawText(g, node, map.settings);
         drawBadges(g, map, node, size);
         g.__sig = sig;
@@ -241,12 +344,12 @@
         branchEls[node.id] = path;
       }
       var depth = MM.model.getDepth(map, node.id);
-      var start = { x: parent.x, y: parent.y };
+      var start = edgePoint(parent, sizes[parent.id], node);
       var end = edgePoint(node, sizes[node.id], parent);
       setAttrs(path, {
         d: branchPath(start, end),
         stroke: node.color,
-        'stroke-width': Math.max(2, 7 - (depth - 1) * 1.5)
+        'stroke-width': Math.max(1.5, 3.5 - (depth - 1) * 0.75)
       });
     }
 
@@ -377,6 +480,7 @@
     linesFor: linesFor,
     branchPath: branchPath,
     edgePoint: edgePoint,
-    darken: darken
+    darken: darken,
+    mixHex: mixHex
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

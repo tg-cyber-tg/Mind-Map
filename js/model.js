@@ -56,11 +56,11 @@
   var SHAPES = ['rounded', 'ellipse', 'rect'];
   var LAYOUTS = ['radial', 'tree'];
   var THEMES = ['chiaro', 'scuro', 'alto-contrasto'];
-  var ROOT_COLOR = '#FFD54F';
-  // Colori dei rami: saturi ma chiari/scuri a sufficienza per un buon contrasto col testo.
+  var ROOT_COLOR = '#1E293B';
+  // Colori dei rami: palette adulta e armoniosa ad alto contrasto.
   var PALETTE = [
-    '#4FC3F7', '#81C784', '#FF8A65', '#BA68C8', '#F06292',
-    '#4DB6AC', '#FFB74D', '#7986CB', '#AED581', '#E57373'
+    '#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777',
+    '#0891B2', '#EA580C', '#4F46E5', '#65A30D', '#DC2626'
   ];
   var DEFAULT_SETTINGS = {
     layout: 'radial',
@@ -367,7 +367,8 @@
     (function visit(id, depth) {
       var n = map.nodes[id];
       if (!n) return;
-      var text = (n.icon ? n.icon + ' ' : '') + n.text.replace(/\s*\n\s*/g, ' ');
+      var icon = n.icon && n.icon.indexOf('svg:') !== 0 ? n.icon + ' ' : '';
+      var text = icon + n.text.replace(/\s*\n\s*/g, ' ');
       lines.push(new Array(depth + 1).join('  ') + (depth === 0 ? '' : '- ') + text);
       n.children.forEach(function (c) { visit(c, depth + 1); });
     })(map.rootId, 0);

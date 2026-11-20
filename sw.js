@@ -7,7 +7,7 @@
  */
 'use strict';
 
-var CACHE_VERSION = 'mm-v1';
+var CACHE_VERSION = 'mm-v2';
 
 // Tutti i file necessari per funzionare senza internet (percorsi relativi a sw.js).
 var PRECACHE = [
@@ -17,9 +17,12 @@ var PRECACHE = [
   'css/style.css',
   'css/print.css',
   'js/namespace.js',
+  'js/icons.js',
   'js/model.js',
   'js/history.js',
   'js/storage.js',
+  'js/firebase-config.js',
+  'js/sync.js',
   'js/layout.js',
   'js/viewport.js',
   'js/renderer.js',
