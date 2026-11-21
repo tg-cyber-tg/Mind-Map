@@ -7,7 +7,8 @@
  */
 'use strict';
 
-var CACHE_VERSION = 'mm-v2';
+var CACHE_VERSION = 'mm-v3';
+var IS_LOCAL = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 
 // Tutti i file necessari per funzionare senza internet (percorsi relativi a sw.js).
 var PRECACHE = [
@@ -45,7 +46,8 @@ self.addEventListener('install', function (event) {
   event.waitUntil(caches.open(CACHE_VERSION).then(function (cache) {
     return cache.addAll(PRECACHE.map(function (url) { return new Request(url, { cache: 'reload' }); }));
   }));
-  // Nessun skipWaiting automatico: la nuova versione si attiva quando l'utente sceglie "Aggiorna".
+  // Su localhost attiva subito la nuova versione per vedere le modifiche in tempo reale.
+  if (IS_LOCAL) self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
@@ -66,6 +68,7 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // solo file della stessa origine
 
+  if (IS_LOCAL) return;
   var isPage = req.mode === 'navigate';
   event.respondWith(caches.open(CACHE_VERSION).then(function (cache) {
     return cache.match(req, { ignoreSearch: isPage }).then(function (hit) {

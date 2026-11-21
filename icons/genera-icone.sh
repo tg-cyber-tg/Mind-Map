@@ -5,7 +5,7 @@
 
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BG="#1E293B"   # stesso colore del fondo dell'icona
+BG="#FFFFFF"   # stesso colore del fondo dell'icona
 
 if [ ! -x "$CHROME" ]; then
   echo "Google Chrome non trovato: impossibile generare le icone."

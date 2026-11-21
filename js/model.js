@@ -55,19 +55,71 @@
   var MAX_TEXT = 200;
   var SHAPES = ['rounded', 'ellipse', 'rect'];
   var LAYOUTS = ['radial', 'tree'];
-  var THEMES = ['chiaro', 'scuro', 'alto-contrasto'];
+  var THEMES = ['auto', 'chiaro', 'scuro', 'alto-contrasto'];
+
+  /** Risolve 'auto' in 'chiaro' o 'scuro' seguendo le preferenze del sistema (Mac/iPad). */
+  function resolveTheme(theme) {
+    if (theme === 'auto') {
+      try {
+        if (typeof root.matchMedia === 'function' && root.matchMedia('(prefers-color-scheme: dark)').matches) {
+          return 'scuro';
+        }
+      } catch (e) { /* fallback chiaro */ }
+      return 'chiaro';
+    }
+    return theme || 'chiaro';
+  }
   var ROOT_COLOR = '#1E293B';
   // Colori dei rami: palette adulta e armoniosa ad alto contrasto.
   var PALETTE = [
     '#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777',
     '#0891B2', '#EA580C', '#4F46E5', '#65A30D', '#DC2626'
   ];
+  // I 25 caratteri più usati in Microsoft Word (con fallback di sistema offline).
+  var WORD_FONTS = [
+    { name: 'Arial', css: 'Arial, Helvetica, sans-serif' },
+    { name: 'Times New Roman', css: '"Times New Roman", Times, Georgia, serif' },
+    { name: 'Calibri', css: 'Calibri, "Carlito", "Helvetica Neue", Arial, sans-serif' },
+    { name: 'Aptos', css: 'Aptos, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+    { name: 'Cambria', css: 'Cambria, Georgia, serif' },
+    { name: 'Georgia', css: 'Georgia, "Times New Roman", serif' },
+    { name: 'Verdana', css: 'Verdana, Geneva, sans-serif' },
+    { name: 'Tahoma', css: 'Tahoma, Geneva, sans-serif' },
+    { name: 'Trebuchet MS', css: '"Trebuchet MS", Helvetica, sans-serif' },
+    { name: 'Garamond', css: 'Garamond, "EB Garamond", Georgia, serif' },
+    { name: 'Palatino', css: '"Palatino Linotype", Palatino, "Book Antiqua", serif' },
+    { name: 'Book Antiqua', css: '"Book Antiqua", Palatino, serif' },
+    { name: 'Century Gothic', css: '"Century Gothic", Futura, "Apple Gothic", sans-serif' },
+    { name: 'Helvetica', css: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
+    { name: 'Segoe UI', css: '"Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif' },
+    { name: 'Candara', css: 'Candara, Optima, sans-serif' },
+    { name: 'Corbel', css: 'Corbel, "Lucida Grande", sans-serif' },
+    { name: 'Constantia', css: 'Constantia, Georgia, serif' },
+    { name: 'Franklin Gothic', css: '"Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif' },
+    { name: 'Gill Sans', css: '"Gill Sans", "Gill Sans MT", Calibri, sans-serif' },
+    { name: 'Optima', css: 'Optima, Candara, sans-serif' },
+    { name: 'Baskerville', css: 'Baskerville, "Baskerville Old Face", Georgia, serif' },
+    { name: 'Didot', css: 'Didot, "Bodoni MT", Georgia, serif' },
+    { name: 'Courier New', css: '"Courier New", Courier, monospace' },
+    { name: 'Comic Sans MS', css: '"Comic Sans MS", "Chalkboard SE", cursive' }
+  ];
+  var FONT_SIZES = [10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+  var TEXT_COLORS = ['', '#0F172A', '#475569', '#14532D', '#1D4ED8', '#B91C1C', '#6D28D9', '#C2410C', '#FFFFFF'];
+
+  function fontCssFor(name) {
+    if (!name) return WORD_FONTS[0].css;
+    for (var i = 0; i < WORD_FONTS.length; i++) {
+      if (WORD_FONTS[i].name === name) return WORD_FONTS[i].css;
+    }
+    return WORD_FONTS[0].css;
+  }
+
   var DEFAULT_SETTINGS = {
     layout: 'radial',
     theme: 'chiaro',
     uppercase: false,
     fontScale: 1,
-    fontFamily: 'leggibile'
+    fontFamily: 'standard'
   };
   var COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -246,6 +298,40 @@
     if (p.icon !== undefined) n.icon = String(p.icon);
     if (p.note !== undefined) n.note = String(p.note);
     if (p.collapsed !== undefined) n.collapsed = !!p.collapsed;
+    // Formattazione carattere stile Word (opzionale per singolo nodo).
+    if (p.fontName !== undefined) {
+      if (!p.fontName) delete n.fontName;
+      else n.fontName = String(p.fontName);
+    }
+    if (p.fontSize !== undefined) {
+      var fs = Number(p.fontSize);
+      if (!p.fontSize || !isFinite(fs)) delete n.fontSize;
+      else n.fontSize = Math.max(10, Math.min(48, Math.round(fs)));
+    }
+    if (p.bold !== undefined) {
+      if (p.bold === null) delete n.bold;
+      else n.bold = !!p.bold;
+    }
+    if (p.italic !== undefined) {
+      if (!p.italic) delete n.italic;
+      else n.italic = true;
+    }
+    if (p.underline !== undefined) {
+      if (!p.underline) delete n.underline;
+      else n.underline = true;
+    }
+    if (p.strike !== undefined) {
+      if (!p.strike) delete n.strike;
+      else n.strike = true;
+    }
+    if (p.uppercase !== undefined) {
+      if (!p.uppercase) delete n.uppercase;
+      else n.uppercase = true;
+    }
+    if (p.textColor !== undefined) {
+      if (!p.textColor) delete n.textColor;
+      else if (COLOR_RE.test(p.textColor)) n.textColor = p.textColor;
+    }
     // Il testo del nodo centrale è anche il titolo della mappa.
     if (nodeId === m.rootId && p.text !== undefined) m.title = n.text;
     return m;
@@ -459,7 +545,8 @@
 
   MM.model = {
     FILE_VERSION: FILE_VERSION, MAX_TEXT: MAX_TEXT, SHAPES: SHAPES, LAYOUTS: LAYOUTS,
-    THEMES: THEMES, PALETTE: PALETTE, ROOT_COLOR: ROOT_COLOR, DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    THEMES: THEMES, resolveTheme: resolveTheme, PALETTE: PALETTE, ROOT_COLOR: ROOT_COLOR, DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    WORD_FONTS: WORD_FONTS, FONT_SIZES: FONT_SIZES, TEXT_COLORS: TEXT_COLORS, fontCssFor: fontCssFor,
     uid: uid, clone: clone, nowIso: nowIso,
     createNode: createNode, createMap: createMap,
     getDescendants: getDescendants, getVisibleNodeIds: getVisibleNodeIds,

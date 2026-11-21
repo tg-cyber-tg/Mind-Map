@@ -194,7 +194,7 @@
   /* ---------- Preferenze di accessibilità (valgono per le nuove mappe) ---------- */
 
   var PREFS_KEY = 'mm:preferenze';
-  var PREF_FIELDS = ['theme', 'uppercase', 'fontScale', 'fontFamily'];
+  var PREF_FIELDS = ['theme', 'uppercase', 'fontScale', 'fontFamily', 'fontName'];
 
   /** Preferenze salvate e valide (oggetto vuoto se assenti o danneggiate). */
   function getPreferences() {
@@ -206,6 +206,7 @@
     if (typeof raw.uppercase === 'boolean') out.uppercase = raw.uppercase;
     if (typeof raw.fontScale === 'number' && isFinite(raw.fontScale)) out.fontScale = Math.max(0.8, Math.min(2, raw.fontScale));
     if (raw.fontFamily === 'leggibile' || raw.fontFamily === 'standard') out.fontFamily = raw.fontFamily;
+    if (typeof raw.fontName === 'string' && raw.fontName.trim()) out.fontName = raw.fontName.trim();
     return out;
   }
 

@@ -55,7 +55,7 @@
     var body = root.getComputedStyle(document.body);
     function v(name, fallback) { return body.getPropertyValue(name).trim() || fallback; }
     var ts = root.getComputedStyle(svgEl);
-    var theme = (map.settings && map.settings.theme) || 'chiaro';
+    var theme = MM.model.resolveTheme ? MM.model.resolveTheme(map.settings && map.settings.theme) : ((map.settings && map.settings.theme) || 'chiaro');
     var defaultBg = theme === 'scuro' ? '#0f172a' : (theme === 'alto-contrasto' ? '#000000' : '#ffffff');
     var defaultSurface = theme === 'scuro' ? '#1e293b' : (theme === 'alto-contrasto' ? '#000000' : '#ffffff');
     var defaultText = theme === 'chiaro' ? '#0f172a' : (theme === 'scuro' ? '#f8fafc' : '#ffffff');
@@ -115,6 +115,7 @@
       if (e.style && e.style.display === 'none' && e.parentNode) e.parentNode.removeChild(e);
     }
     content.removeAttribute('transform');
+    content.style.transform = '';
     content.removeAttribute('id');
     return content;
   }

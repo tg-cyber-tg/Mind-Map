@@ -142,7 +142,7 @@
       case 'riordina': app.relayout(); toast('Nodi riordinati (Ctrl/Cmd+Z per annullare)'); break;
       case 'zoom-meno': app.zoom(1 / 1.2); break;
       case 'zoom-piu': app.zoom(1.2); break;
-      case 'adatta': app.fit(); break;
+      case 'adatta': app.fit({ animate: true }); break;
       case 'aiuto': openHelp(); break;
       case 'accessibilita': openSettings(); break;
       case 'sync': openSync(); break;
@@ -288,6 +288,8 @@
       })
     ]));
 
+    parts.push(typographySection(map, node));
+
     var colors = MM.model.PALETTE.concat(isRoot ? [MM.model.ROOT_COLOR] : []);
     if (colors.indexOf(node.color) < 0) colors.push(node.color);
     parts.push(section('Colore', [
@@ -320,6 +322,115 @@
     parts.push(linksSection(map, node));
     parts.push(actionsSection(node));
     return parts;
+  }
+
+  function typographySection(map, node) {
+    var id = node.id;
+    var isRoot = node.parentId === null;
+    var fonts = MM.model.WORD_FONTS || [];
+    var sizes = MM.model.FONT_SIZES || [12, 14, 16, 18, 20, 24, 28, 32, 36];
+    var textColors = MM.model.TEXT_COLORS || [];
+    var activeFont = node.fontName || (map.settings && map.settings.fontName) || 'Arial';
+    var activeSize = node.fontSize || '';
+    var isBold = node.bold !== undefined && node.bold !== null ? !!node.bold : isRoot;
+
+    // 1. Menu a tendina dei 25 caratteri di Word
+    var fontSelect = h('select', { id: 'prop-font', 'class': 'font-select', 'aria-label': 'Tipo di carattere' },
+      fonts.map(function (f) {
+        var opt = h('option', { value: f.name, style: 'font-family:' + f.css }, [f.name]);
+        if (f.name === activeFont) opt.selected = true;
+        return opt;
+      }));
+    fontSelect.style.fontFamily = MM.model.fontCssFor(activeFont);
+    fontSelect.addEventListener('change', function () {
+      var val = fontSelect.value;
+      app.updateNode(id, { fontName: val }, { relayout: true });
+    });
+
+    // 2. Menu a tendina grandezza carattere + A- / A+
+    var sizeSelect = h('select', { id: 'prop-size', 'class': 'size-select', 'aria-label': 'Grandezza carattere' },
+      [h('option', { value: '' }, ['Auto'])].concat(sizes.map(function (sz) {
+        var opt = h('option', { value: String(sz) }, [String(sz)]);
+        if (Number(activeSize) === sz) opt.selected = true;
+        return opt;
+      })));
+    if (!activeSize) sizeSelect.value = '';
+    sizeSelect.addEventListener('change', function () {
+      var val = sizeSelect.value ? parseInt(sizeSelect.value, 10) : null;
+      app.updateNode(id, { fontSize: val }, { relayout: true });
+    });
+
+    function stepSize(delta) {
+      var cur = node.fontSize || (isRoot ? 20 : 16);
+      var next = Math.max(10, Math.min(48, cur + delta));
+      app.updateNode(id, { fontSize: next }, { relayout: true });
+    }
+
+    var fontRow = h('div', { 'class': 'font-row' }, [fontSelect, sizeSelect]);
+
+    // 3. Barra stile Microsoft Word: G, C, S, Barrato, AA, A-, A+
+    var wordBar = h('div', { 'class': 'word-toolbar', role: 'group', 'aria-label': 'Stile del carattere' }, [
+      h('button', {
+        type: 'button', 'class': 'word-btn word-bold' + (isBold ? ' selected' : ''),
+        'aria-pressed': String(isBold), title: 'Grassetto',
+        on: { click: function () { app.updateNode(id, { bold: !isBold }, { relayout: true }); } }
+      }, ['G']),
+      h('button', {
+        type: 'button', 'class': 'word-btn word-italic' + (node.italic ? ' selected' : ''),
+        'aria-pressed': String(!!node.italic), title: 'Corsivo',
+        on: { click: function () { app.updateNode(id, { italic: !node.italic }, { relayout: true }); } }
+      }, ['C']),
+      h('button', {
+        type: 'button', 'class': 'word-btn word-underline' + (node.underline ? ' selected' : ''),
+        'aria-pressed': String(!!node.underline), title: 'Sottolineato',
+        on: { click: function () { app.updateNode(id, { underline: !node.underline }); } }
+      }, ['S']),
+      h('button', {
+        type: 'button', 'class': 'word-btn word-strike' + (node.strike ? ' selected' : ''),
+        'aria-pressed': String(!!node.strike), title: 'Barrato',
+        on: { click: function () { app.updateNode(id, { strike: !node.strike }); } }
+      }, ['S']),
+      h('button', {
+        type: 'button', 'class': 'word-btn' + (node.uppercase ? ' selected' : ''),
+        'aria-pressed': String(!!node.uppercase), title: 'Tutto maiuscolo',
+        on: { click: function () { app.updateNode(id, { uppercase: !node.uppercase }, { relayout: true }); } }
+      }, ['AA']),
+      h('button', {
+        type: 'button', 'class': 'word-btn', title: 'Riduci dimensione testo',
+        on: { click: function () { stepSize(-2); } }
+      }, ['A−']),
+      h('button', {
+        type: 'button', 'class': 'word-btn', title: 'Aumenta dimensione testo',
+        on: { click: function () { stepSize(2); } }
+      }, ['A+'])
+    ]);
+
+    // 4. Colore del testo (Automatico + colori rapidi)
+    var colorRow = h('div', { 'class': 'text-color-row', role: 'radiogroup', 'aria-label': 'Colore del testo' },
+      textColors.map(function (tc) {
+        var sel = (node.textColor || '').toLowerCase() === tc.toLowerCase();
+        var label = tc ? 'Colore testo ' + tc : 'Colore testo automatico';
+        return h('button', {
+          type: 'button',
+          'class': 'text-swatch' + (sel ? ' selected' : '') + (!tc ? ' text-swatch-auto' : ''),
+          role: 'radio', 'aria-checked': String(sel), 'aria-label': label, title: label,
+          style: tc ? 'background:' + tc : null,
+          on: { click: function () { app.updateNode(id, { textColor: tc }); } }
+        }, [!tc ? 'A' : '']);
+      }));
+
+    // 5. Applica questo carattere a tutta la mappa
+    var applyAll = h('button', {
+      type: 'button', 'class': 'link-button',
+      on: {
+        click: function () {
+          app.applySettings({ fontFamily: 'standard', fontName: activeFont });
+          toast('Carattere "' + activeFont + '" applicato a tutta la mappa', 'successo');
+        }
+      }
+    }, ['Applica «' + activeFont + '» a tutta la mappa']);
+
+    return section('Carattere', [fontRow, wordBar, colorRow, applyAll]);
   }
 
   function iconSection(node) {
@@ -919,10 +1030,23 @@
 
   /* ---------- Avvio ---------- */
 
+  function initTooltips() {
+    $all('.toolbar button[title], .floating-controls button[title]').forEach(function (btn) {
+      var tip = btn.getAttribute('title');
+      if (!tip) return;
+      btn.setAttribute('data-tooltip', tip);
+      if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', tip);
+      btn.removeAttribute('title');
+      if (btn.closest('.tool-group-right')) btn.setAttribute('data-tooltip-align', 'right');
+      else if (btn.closest('.floating-controls')) btn.setAttribute('data-tooltip-pos', 'top');
+    });
+  }
+
   function init(appApi) {
     app = appApi;
     panel = document.getElementById('properties');
     if (MM.icons) MM.icons.hydrate(document);
+    initTooltips();
 
     document.addEventListener('click', function (e) {
       var menuBtn = e.target.closest('[data-menu]');

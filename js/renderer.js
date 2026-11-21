@@ -31,7 +31,19 @@
 
   function fontSizeFor(node, settings) {
     var scale = (settings && settings.fontScale) || 1;
-    return Math.round(BASE_FONT * scale * (node.parentId === null ? 1.25 : 1) * 10) / 10;
+    var base = node.fontSize ? Number(node.fontSize) : (BASE_FONT * (node.parentId === null ? 1.25 : 1));
+    return Math.round(base * scale * 10) / 10;
+  }
+
+  function fontFamilyFor(node, settings) {
+    if (node.fontName && MM.model.fontCssFor) return MM.model.fontCssFor(node.fontName);
+    if (settings && settings.fontFamily === 'leggibile') return null;
+    if (settings && settings.fontName && MM.model.fontCssFor) return MM.model.fontCssFor(settings.fontName);
+    return null;
+  }
+
+  function isBoldFor(node) {
+    return node.bold !== undefined && node.bold !== null ? !!node.bold : node.parentId === null;
   }
 
   function hasVectorIcon(node) {
@@ -40,7 +52,8 @@
 
   /** Righe da disegnare: emoji in testa alla prima riga, maiuscolo se richiesto. */
   function linesFor(node, settings) {
-    var text = settings && settings.uppercase ? node.text.toLocaleUpperCase('it-IT') : node.text;
+    var upper = (settings && settings.uppercase) || !!node.uppercase;
+    var text = upper ? node.text.toLocaleUpperCase('it-IT') : node.text;
     var lines = MM.layout.wrapText(text, MM.layout.WRAP_CHARS);
     if (node.icon && !hasVectorIcon(node)) lines[0] = node.icon + (lines[0] ? ' ' + lines[0] : '');
     return lines;
@@ -129,9 +142,12 @@
       el('path', { d: 'M1 2 L9 5 L1 8 L3 5 z', 'class': 'link-arrow' }, marker);
     }
 
-    function lineWidth(line, fontSize, bold) {
+    function lineWidth(line, fontSize, bold, fontFamily, italic) {
       measureText.setAttribute('font-size', fontSize);
       measureText.setAttribute('font-weight', bold ? 'bold' : 'normal');
+      measureText.setAttribute('font-style', italic ? 'italic' : 'normal');
+      if (fontFamily) measureText.setAttribute('font-family', fontFamily);
+      else measureText.removeAttribute('font-family');
       measureText.textContent = line || ' ';
       var w = 0;
       try { w = measureText.getComputedTextLength(); } catch (e) { w = 0; }
@@ -142,16 +158,19 @@
     function measure(node, settings) {
       var s = settings || MM.model.DEFAULT_SETTINGS;
       var fontSize = fontSizeFor(node, s);
+      var fontFamily = fontFamilyFor(node, s);
+      var bold = isBoldFor(node);
+      var italic = !!node.italic;
       var lines = linesFor(node, s);
       var isRoot = node.parentId === null;
       var isVec = hasVectorIcon(node);
-      var key = [lines.join('\n'), fontSize, node.shape, isRoot, isVec, s.fontFamily].join('|');
+      var key = [lines.join('\n'), fontSize, bold, italic, fontFamily || '', node.shape, isRoot, isVec, s.fontFamily].join('|');
       if (measureCache[key]) return measureCache[key];
       var maxW = 0;
       var rawAny = false;
       var iconSize = Math.round(fontSize * 1.1);
       for (var i = 0; i < lines.length; i++) {
-        var lw = lineWidth(lines[i], fontSize, isRoot);
+        var lw = lineWidth(lines[i], fontSize, bold, fontFamily, italic);
         if (lw > 0) rawAny = true;
         if (i === 0 && isVec) lw += iconSize + (lines[0] ? 8 : 0);
         maxW = Math.max(maxW, lw);
@@ -178,7 +197,7 @@
         shapeEl = fresh;
       }
       var isRoot = node.parentId === null;
-      var theme = (settings && settings.theme) || 'chiaro';
+      var theme = MM.model.resolveTheme ? MM.model.resolveTheme(settings && settings.theme) : ((settings && settings.theme) || 'chiaro');
       if (tag === 'ellipse') {
         setAttrs(shapeEl, { cx: 0, cy: 0, rx: size.width / 2, ry: size.height / 2 });
       } else {
@@ -202,8 +221,7 @@
       setAttrs(shapeEl, {
         fill: fillColor,
         stroke: strokeColor,
-        'stroke-width': strokeW,
-        filter: theme === 'alto-contrasto' ? null : 'url(#mm-node-shadow)'
+        'stroke-width': strokeW
       });
     }
 
@@ -213,16 +231,26 @@
       var textEl = g.querySelector('.node-text');
       if (!textEl) textEl = el('text', { 'class': 'node-text', 'text-anchor': 'middle' }, g);
       var fontSize = fontSizeFor(node, settings);
+      var fontFamily = fontFamilyFor(node, settings);
+      var bold = isBoldFor(node);
+      var italic = !!node.italic;
       var lines = linesFor(node, settings);
       var lineH = fontSize * LINE_H;
       var isRoot = node.parentId === null;
-      var theme = (settings && settings.theme) || 'chiaro';
-      var textFill = isRoot
+      var theme = MM.model.resolveTheme ? MM.model.resolveTheme(settings && settings.theme) : ((settings && settings.theme) || 'chiaro');
+      var autoFill = isRoot
         ? MM.model.textColorFor(node.color)
         : (theme === 'scuro' ? '#F8FAFC' : (theme === 'alto-contrasto' ? '#FFFFFF' : '#0F172A'));
+      var textFill = (node.textColor && theme !== 'alto-contrasto') ? node.textColor : autoFill;
+      var deco = [];
+      if (node.underline) deco.push('underline');
+      if (node.strike) deco.push('line-through');
       setAttrs(textEl, {
         'font-size': fontSize,
-        'font-weight': isRoot ? 'bold' : 'normal',
+        'font-weight': bold ? 'bold' : 'normal',
+        'font-style': italic ? 'italic' : 'normal',
+        'font-family': fontFamily || null,
+        'text-decoration': deco.length ? deco.join(' ') : null,
         fill: textFill
       });
       textEl.textContent = '';
@@ -233,7 +261,7 @@
         var iconSize = Math.round(fontSize * 1.1);
         var iconGap = 8;
         var hasText0 = !!lines[0];
-        var t0w = hasText0 ? (lineWidth(lines[0], fontSize, isRoot) || lines[0].length * fontSize * 0.55) : 0;
+        var t0w = hasText0 ? (lineWidth(lines[0], fontSize, bold, fontFamily, italic) || lines[0].length * fontSize * 0.55) : 0;
         var totalW = iconSize + (hasText0 ? iconGap + t0w : 0);
         var iconX = -totalW / 2;
         var iconY = firstY - iconSize / 2;
@@ -312,9 +340,12 @@
         nodeEls[node.id] = g;
       }
       var size = measure(node, map.settings);
+      var resolvedTheme = MM.model.resolveTheme ? MM.model.resolveTheme(map.settings.theme) : map.settings.theme;
       var sig = JSON.stringify([node.text, node.icon, node.note, node.color, node.shape, node.collapsed,
+        node.fontName || '', node.fontSize || 0, node.bold, !!node.italic, !!node.underline,
+        !!node.strike, !!node.uppercase, node.textColor || '',
         node.children.length, map.settings.fontScale, map.settings.uppercase, map.settings.fontFamily,
-        map.settings.theme, size.width, size.height]);
+        map.settings.fontName || '', resolvedTheme, size.width, size.height]);
       if (g.__sig !== sig) {
         drawShape(g, node, size, map.settings);
         drawText(g, node, map.settings);
@@ -444,7 +475,36 @@
       // Il nodo selezionato va in primo piano (ultimo nel livello dei nodi).
       if (opts.selectedId && nodeEls[opts.selectedId]) layers.nodes.appendChild(nodeEls[opts.selectedId]);
       if (highlighted && nodeEls[highlighted]) nodeEls[highlighted].classList.add('highlight');
+      lastSizes = sizes;
       return sizes;
+    }
+
+    var lastSizes = {};
+
+    /** Percorso ultra-veloce durante il trascinamento: aggiorna solo transform e rami/link toccati. */
+    function moveNodesFast(map, movedIds, opts) {
+      var movedSet = {};
+      for (var i = 0; i < movedIds.length; i++) {
+        var id = movedIds[i];
+        movedSet[id] = true;
+        var n = map.nodes[id];
+        var g = nodeEls[id];
+        if (n && g) g.setAttribute('transform', 'translate(' + n.x + ' ' + n.y + ')');
+      }
+      for (var j = 0; j < movedIds.length; j++) {
+        var bid = movedIds[j];
+        var bn = map.nodes[bid];
+        if (bn && bn.parentId !== null && lastSizes[bid] && lastSizes[bn.parentId]) {
+          renderBranch(map, bn, lastSizes);
+        }
+      }
+      var links = map.links || [];
+      for (var k = 0; k < links.length; k++) {
+        var l = links[k];
+        if ((movedSet[l.fromId] || movedSet[l.toId]) && lastSizes[l.fromId] && lastSizes[l.toId]) {
+          renderLink(map, l, lastSizes, opts || {});
+        }
+      }
     }
 
     /** Evidenzia un nodo (es. lettura vocale); null per togliere l'evidenziazione. */
@@ -469,8 +529,8 @@
     }
 
     return {
-      render: render, measure: measure, highlight: highlight, getNodeElement: getNodeElement,
-      invalidate: invalidate, destroy: destroy, svg: svgEl, world: world
+      render: render, moveNodesFast: moveNodesFast, measure: measure, highlight: highlight,
+      getNodeElement: getNodeElement, invalidate: invalidate, destroy: destroy, svg: svgEl, world: world
     };
   }
 

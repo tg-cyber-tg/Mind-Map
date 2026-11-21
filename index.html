@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/print.css">
 </head>
-<body class="mm-font-leggibile" data-theme="chiaro">
+<body data-theme="chiaro">
   <header id="toolbar" class="toolbar" role="toolbar" aria-label="Strumenti">
     <div class="brand">
       <span class="app-logo" data-icon="logo" data-icon-size="22" aria-hidden="true"></span>
@@ -189,6 +189,7 @@
     <form id="form-accessibilita" class="settings-form" onsubmit="return false">
       <fieldset>
         <legend>Tema</legend>
+        <label><input type="radio" name="theme" value="auto"> <span class="ico" data-icon="monitor" data-icon-size="16" aria-hidden="true"></span> Automatico (come il dispositivo)</label>
         <label><input type="radio" name="theme" value="chiaro"> <span class="ico" data-icon="sun" data-icon-size="16" aria-hidden="true"></span> Chiaro</label>
         <label><input type="radio" name="theme" value="scuro"> <span class="ico" data-icon="moon" data-icon-size="16" aria-hidden="true"></span> Scuro</label>
         <label><input type="radio" name="theme" value="alto-contrasto"> <span class="ico" data-icon="contrast" data-icon-size="16" aria-hidden="true"></span> Alto contrasto</label>
@@ -196,7 +197,7 @@
       <fieldset>
         <legend>Carattere</legend>
         <label><input type="radio" name="fontFamily" value="leggibile"> Ad alta leggibilità (più spaziato)</label>
-        <label><input type="radio" name="fontFamily" value="standard"> Standard</label>
+        <label><input type="radio" name="fontFamily" value="standard"> Standard (Arial)</label>
         <label class="check"><input type="checkbox" name="uppercase"> TUTTO MAIUSCOLO (stampato)</label>
         <label for="acc-font-scale">Grandezza del testo: <output id="acc-font-scale-val">100%</output></label>
         <input type="range" id="acc-font-scale" name="fontScale" min="0.8" max="2" step="0.1">

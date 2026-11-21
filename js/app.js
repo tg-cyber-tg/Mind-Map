@@ -61,9 +61,16 @@
 
   function applyBodySettings(settings) {
     var body = document.body;
-    body.setAttribute('data-theme', settings.theme || 'chiaro');
+    var resolvedTheme = MM.model.resolveTheme ? MM.model.resolveTheme(settings.theme) : (settings.theme || 'chiaro');
+    body.setAttribute('data-theme', resolvedTheme);
     body.classList.toggle('mm-uppercase', !!settings.uppercase);
-    body.classList.toggle('mm-font-leggibile', settings.fontFamily !== 'standard');
+    var isLeggibile = settings.fontFamily === 'leggibile';
+    body.classList.toggle('mm-font-leggibile', isLeggibile);
+    if (!isLeggibile && settings.fontName && MM.model.fontCssFor) {
+      body.style.setProperty('--mm-font-family', MM.model.fontCssFor(settings.fontName));
+    } else {
+      body.style.removeProperty('--mm-font-family');
+    }
     // Anche l'interfaccia cresce con il testo della mappa, ma in modo attenuato
     // (a 2× la barra degli strumenti non starebbe più sullo schermo).
     var scale = settings.fontScale || 1;
@@ -235,7 +242,7 @@
   /** Riapplica la disposizione automatica (annullabile). */
   function relayout() {
     commit(MM.layout.apply(state.map));
-    fit();
+    fit({ animate: true });
   }
 
   /* ---------- Annulla / Ripristina ---------- */
@@ -259,12 +266,12 @@
 
   /* ---------- Vista ---------- */
 
-  function fit() {
+  function fit(opts) {
     if (!state.viewport) return;
-    state.viewport.fitTo(MM.layout.getBounds(state.map), 60);
+    state.viewport.fitTo(MM.layout.getBounds(state.map), 60, 1.5, opts);
   }
 
-  function zoom(factor) { if (state.viewport) state.viewport.zoomAt(factor); }
+  function zoom(factor) { if (state.viewport) state.viewport.zoomAt(factor, undefined, undefined, { animate: true }); }
 
   /* ---------- Gestione delle mappe ---------- */
 
@@ -432,13 +439,13 @@
     Object.keys(patch).forEach(function (k) { m.settings[k] = patch[k]; });
     if (m.settings.fontScale) m.settings.fontScale = Math.max(0.8, Math.min(2, m.settings.fontScale));
     applyBodySettings(m.settings);
-    if (['theme', 'uppercase', 'fontScale', 'fontFamily'].some(function (k) { return k in patch; })) {
+    if (['theme', 'uppercase', 'fontScale', 'fontFamily', 'fontName'].some(function (k) { return k in patch; })) {
       MM.storage.setPreferences(m.settings);
     }
-    var needsLayout = ['layout', 'fontScale', 'uppercase', 'fontFamily'].some(function (k) { return k in patch; });
-    if (state.renderer && ('fontFamily' in patch || 'fontScale' in patch || 'uppercase' in patch)) state.renderer.invalidate();
+    var needsLayout = ['layout', 'fontScale', 'uppercase', 'fontFamily', 'fontName'].some(function (k) { return k in patch; });
+    if (state.renderer && ('fontFamily' in patch || 'fontName' in patch || 'fontScale' in patch || 'uppercase' in patch)) state.renderer.invalidate();
     commit(m, { relayout: needsLayout });
-    if ('layout' in patch) fit();
+    if ('layout' in patch) fit({ animate: true });
   }
 
   /* ---------- Lettura ad alta voce ---------- */
@@ -522,6 +529,19 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') saveNow();
     });
+    // Aggiorna subito il tema se il Mac/iPad passa da chiaro a scuro (modalità "Automatico").
+    if (typeof root.matchMedia === 'function') {
+      var mq = root.matchMedia('(prefers-color-scheme: dark)');
+      var onSchemeChange = function () {
+        if (state.map && state.map.settings && state.map.settings.theme === 'auto') {
+          applyBodySettings(state.map.settings);
+          if (state.renderer) state.renderer.invalidate();
+          render();
+        }
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onSchemeChange);
+      else if (mq.addListener) mq.addListener(onSchemeChange);
+    }
     // Le misure reali dipendono dai font: quando sono pronti si ricalcola il disegno.
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(function () {

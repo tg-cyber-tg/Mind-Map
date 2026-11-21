@@ -8,13 +8,15 @@
   'use strict';
   var MM = root.MM;
 
-  var DRAG_THRESHOLD = 5;      // px prima che un clic diventi trascinamento
+  var DRAG_THRESHOLD = 3;      // px prima che un clic diventi trascinamento
   var DOUBLE_TAP_MS = 350;
 
   var app = null;
   var svg = null;
   var pointers = {};           // pointerId -> { x, y }
   var gesture = null;          // gesto in corso
+  var dragRaf = null;          // coalescing rAF per trascinamento nodi a 60–120fps
+  var pendingDrag = null;      // ultimo punto pointermove in attesa del frame
   var lastTap = { id: null, time: 0, x: 0, y: 0 };
   var editor = null;           // modifica in linea in corso
 
@@ -74,10 +76,16 @@
     var nodeId = nodeIdFrom(e.target);
     var start = { x: e.clientX, y: e.clientY };
     if (nodeId) {
+      var descendants = MM.model.getDescendants(map, nodeId);
+      var exclude = {};
+      exclude[nodeId] = true;
+      descendants.forEach(function (id) { exclude[id] = true; });
       gesture = {
         type: 'node', id: nodeId, start: start, moved: false,
         startWorld: app.state.viewport.screenToWorld(e.clientX, e.clientY),
         origMap: map, origPos: { x: map.nodes[nodeId].x, y: map.nodes[nodeId].y },
+        movedIds: [nodeId].concat(descendants),
+        exclude: exclude,
         onBadge: !!(e.target.closest && e.target.closest('.badge-collapsed'))
       };
     } else {
@@ -86,6 +94,57 @@
   }
 
   function midpoint(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+  /** Copia leggera della mappa con i soli nodi spostati (evita deep-clone JSON a 120fps). */
+  function fastMoveMap(orig, movedIds, dx, dy) {
+    var nodes = {};
+    var origNodes = orig.nodes;
+    var keys = Object.keys(origNodes);
+    for (var i = 0; i < keys.length; i++) nodes[keys[i]] = origNodes[keys[i]];
+    for (var j = 0; j < movedIds.length; j++) {
+      var id = movedIds[j];
+      var src = origNodes[id];
+      if (!src) continue;
+      var copy = {};
+      var nk = Object.keys(src);
+      for (var k = 0; k < nk.length; k++) copy[nk[k]] = src[nk[k]];
+      copy.x = src.x + dx;
+      copy.y = src.y + dy;
+      nodes[id] = copy;
+    }
+    return {
+      version: orig.version, id: orig.id, title: orig.title, rootId: orig.rootId,
+      nodes: nodes, links: orig.links, settings: orig.settings,
+      createdAt: orig.createdAt, updatedAt: orig.updatedAt
+    };
+  }
+
+  function flushNodeDrag() {
+    dragRaf = null;
+    if (!pendingDrag || !gesture || gesture.type !== 'node') return;
+    var pd = pendingDrag;
+    pendingDrag = null;
+    var vp = app.state.viewport;
+    var w = vp.screenToWorld(pd.x, pd.y);
+    var orig = gesture.origMap;
+    var isRoot = orig.nodes[gesture.id].parentId === null;
+    var dx = w.x - gesture.startWorld.x;
+    var dy = w.y - gesture.startWorld.y;
+    var moved = fastMoveMap(orig, gesture.movedIds, dx, dy);
+    app.state.map = moved;
+    gesture.lastMap = moved;
+    var nextDrop = pd.altKey && !isRoot ? nodeAtWorld(moved, w, gesture.exclude) : null;
+    var dropChanged = nextDrop !== gesture.dropTarget;
+    gesture.dropTarget = nextDrop;
+    if (!dropChanged && app.state.renderer && app.state.renderer.moveNodesFast) {
+      app.state.renderer.moveNodesFast(moved, gesture.movedIds, {
+        selectedId: app.state.selectedId,
+        selectedLinkId: app.state.selectedLinkId
+      });
+    } else {
+      app.render({ draggingId: gesture.id, dropTargetId: gesture.dropTarget });
+    }
+  }
 
   function onPointerMove(e) {
     if (!pointers[e.pointerId]) return;
@@ -119,21 +178,12 @@
 
     if (gesture.type === 'node') {
       if (app.state.mode === 'collegamento') return;
-      var w = vp.screenToWorld(p.x, p.y);
-      var orig = gesture.origMap;
-      var isRoot = orig.nodes[gesture.id].parentId === null;
-      // Il trascinamento sposta il nodo insieme al suo sotto-ramo.
-      var moved = MM.model.moveNode(orig, gesture.id,
-        gesture.origPos.x + (w.x - gesture.startWorld.x),
-        gesture.origPos.y + (w.y - gesture.startWorld.y), true);
-      app.state.map = moved;
-      gesture.lastMap = moved;
-      // Con Alt (⌥) premuto, rilasciando su un altro nodo si cambia genitore.
-      var exclude = {};
-      exclude[gesture.id] = true;
-      MM.model.getDescendants(orig, gesture.id).forEach(function (id) { exclude[id] = true; });
-      gesture.dropTarget = e.altKey && !isRoot ? nodeAtWorld(moved, w, exclude) : null;
-      app.render({ draggingId: gesture.id, dropTargetId: gesture.dropTarget });
+      svg.classList.add('is-dragging');
+      pendingDrag = { x: p.x, y: p.y, altKey: e.altKey };
+      if (!dragRaf) {
+        if (typeof root.requestAnimationFrame === 'function') dragRaf = root.requestAnimationFrame(flushNodeDrag);
+        else flushNodeDrag();
+      }
     }
   }
 
@@ -142,6 +192,12 @@
     delete pointers[e.pointerId];
     try { svg.releasePointerCapture(e.pointerId); } catch (err) { /* già rilasciato */ }
     svg.classList.remove('panning');
+    svg.classList.remove('is-dragging');
+    if (dragRaf && typeof root.cancelAnimationFrame === 'function') {
+      root.cancelAnimationFrame(dragRaf);
+      dragRaf = null;
+    }
+    if (pendingDrag) flushNodeDrag();
     var g = gesture;
     if (!g) return;
     if (g.type === 'pinch') {
@@ -197,6 +253,12 @@
 
   /** Interrompe un trascinamento in corso riportando il nodo alla posizione iniziale. */
   function cancelNodeDrag() {
+    if (dragRaf && typeof root.cancelAnimationFrame === 'function') {
+      root.cancelAnimationFrame(dragRaf);
+      dragRaf = null;
+    }
+    pendingDrag = null;
+    svg.classList.remove('is-dragging');
     if (gesture && gesture.type === 'node' && gesture.moved) {
       app.state.map = gesture.origMap;
       app.setTransient({});

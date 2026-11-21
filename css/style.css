@@ -4,7 +4,7 @@
   --mm-font-scale: 1;
   --mm-bg: #f8fafc;
   --mm-surface: #ffffff;
-  --mm-surface-glass: rgba(255, 255, 255, 0.88);
+  --mm-surface-glass: rgba(255, 255, 255, 0.96);
   --mm-text: #0f172a;
   --mm-text-muted: #64748b;
   --mm-border: #e2e8f0;
@@ -21,7 +21,7 @@
 [data-theme="scuro"] {
   --mm-bg: #0f172a;
   --mm-surface: #1e293b;
-  --mm-surface-glass: rgba(30, 41, 59, 0.88);
+  --mm-surface-glass: rgba(30, 41, 59, 0.96);
   --mm-text: #f8fafc;
   --mm-text-muted: #94a3b8;
   --mm-border: #334155;
@@ -59,7 +59,7 @@ html, body {
   margin: 0;
   background: var(--mm-bg);
   color: var(--mm-text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--mm-font-family, Arial, Helvetica, sans-serif);
   font-size: calc(15px * var(--mm-font-scale));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -111,8 +111,6 @@ body {
   row-gap: 0.3rem;
   padding: 0.45rem 0.9rem;
   background: var(--mm-surface-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--mm-border);
   box-shadow: var(--mm-shadow-sm);
   z-index: 15;
@@ -133,7 +131,13 @@ body {
 }
 
 .app-logo {
-  color: var(--mm-accent);
+  width: 30px;
+  height: 30px;
+  background: #ffffff;
+  color: #14532d;
+  border: 1px solid rgba(20, 83, 45, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .map-title {
@@ -401,8 +405,6 @@ button.danger:hover:not(:disabled) {
   gap: 0.15rem;
   padding: 0.3rem 0.45rem;
   background: var(--mm-surface-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--mm-border);
   border-radius: 999px;
   box-shadow: var(--mm-shadow-md);
@@ -1155,4 +1157,187 @@ kbd {
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ---------- Tooltip istantanei al passaggio del mouse ---------- */
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  padding: 0.34rem 0.62rem;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: #f8fafc;
+  background: #0f172a;
+  border-radius: 7px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 80;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Evita sovrapposizione quando un menu a tendina è aperto */
+[data-tooltip][aria-expanded="true"]::after {
+  opacity: 0 !important;
+}
+
+[data-tooltip-align="right"]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-2px);
+}
+[data-tooltip-align="right"]:hover::after,
+[data-tooltip-align="right"]:focus-visible::after {
+  transform: translateY(0);
+}
+
+[data-tooltip-pos="top"]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(2px);
+}
+[data-tooltip-pos="top"]:hover::after,
+[data-tooltip-pos="top"]:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+}
+
+[data-theme="scuro"] [data-tooltip]::after {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+[data-theme="alto-contrasto"] [data-tooltip]::after {
+  background: #000000;
+  color: #ffff00;
+  border: 2px solid #ffff00;
+}
+
+/* ---------- Controlli Carattere stile Microsoft Word ---------- */
+
+.font-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.font-select,
+.size-select {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--mm-text);
+  background: var(--mm-bg);
+  border: 1px solid var(--mm-border);
+  border-radius: 8px;
+  padding: 0.36rem 0.5rem;
+  min-height: 2.1rem;
+  cursor: pointer;
+}
+
+.font-select {
+  min-width: 0;
+  width: 100%;
+}
+
+.size-select {
+  width: 4.4rem;
+}
+
+.word-toolbar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.22rem;
+  margin-bottom: 0.55rem;
+}
+
+.word-btn {
+  min-height: 2rem;
+  padding: 0.2rem 0;
+  font-size: 0.85rem;
+  justify-content: center;
+  border: 1px solid var(--mm-border);
+  background: var(--mm-bg);
+  border-radius: 7px;
+}
+
+.word-btn:hover:not(:disabled) {
+  background: var(--mm-hover);
+  border-color: var(--mm-accent);
+}
+
+.word-btn.selected {
+  background: var(--mm-accent);
+  color: #ffffff;
+  border-color: var(--mm-accent);
+}
+
+.word-bold { font-weight: 700; }
+.word-italic { font-style: italic; }
+.word-underline { text-decoration: underline; }
+.word-strike { text-decoration: line-through; }
+
+.text-color-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.text-swatch {
+  width: 1.45rem;
+  height: 1.45rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--mm-border);
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.text-swatch-auto {
+  background: var(--mm-bg);
+  color: var(--mm-text);
+}
+
+.text-swatch.selected {
+  outline: 2px solid var(--mm-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Fluidità GPU e micro-transizioni ---------- */
+
+#world {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.canvas:not(.is-dragging):not(.panning) .node {
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
+}
+
+.node-shape {
+  transition: stroke-width 0.14s ease, filter 0.16s ease, fill 0.18s ease, stroke 0.18s ease;
+}
+
+body, .toolbar, .properties, .floating-controls {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
