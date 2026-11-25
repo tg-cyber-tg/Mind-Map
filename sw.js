@@ -7,7 +7,7 @@
  */
 'use strict';
 
-var CACHE_VERSION = 'mm-v3';
+var CACHE_VERSION = 'mm-v4';
 var IS_LOCAL = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 
 // Tutti i file necessari per funzionare senza internet (percorsi relativi a sw.js).

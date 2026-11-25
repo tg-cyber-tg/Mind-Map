@@ -14,9 +14,9 @@
   var MAX_SIDE = 8192;
   var ARROW_ID = 'mmx-arrow';   // diverso dal marcatore della pagina (evita conflitti)
   var SHADOW_ID = 'mmx-shadow'; // diverso dal filtro della pagina (evita conflitti)
-  var TRANSIENT_CLASSES = ['selected', 'highlight', 'link-source', 'drop-target', 'dragging', 'editing'];
+  var TRANSIENT_CLASSES = ['selected', 'multi-selected', 'highlight', 'link-source', 'drop-target', 'dragging', 'editing'];
   var TECH_ATTRS = ['role', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-level', 'aria-label',
-    'data-id', 'data-link-id', 'tabindex'];
+    'data-id', 'data-link-id', 'data-summary-id', 'tabindex'];
 
   /** Scala effettiva per il PNG, ridotta se l'immagine supererebbe i limiti del browser. */
   function fitScale(width, height, scale) {
@@ -66,6 +66,7 @@
       bg: theme === 'chiaro' ? '#ffffff' : (theme === 'alto-contrasto' ? '#000000' : v('--mm-bg', defaultBg)),
       surface: theme === 'alto-contrasto' ? '#000000' : v('--mm-surface', defaultSurface),
       text: theme === 'alto-contrasto' ? '#ffffff' : v('--mm-text', defaultText),
+      muted: theme === 'alto-contrasto' ? '#ffffff' : v('--mm-text-muted', theme === 'scuro' ? '#94a3b8' : '#64748b'),
       border: theme === 'alto-contrasto' ? '#ffffff' : v('--mm-border', defaultBorder),
       fontFamily: ts.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       letterSpacing: ts.letterSpacing && ts.letterSpacing !== 'normal' ? ts.letterSpacing : '0',
@@ -79,9 +80,12 @@
       'text{font-family:' + look.fontFamily + ';letter-spacing:' + look.letterSpacing +
         ';word-spacing:' + look.wordSpacing + '}',
       '.branch{fill:none;stroke-linecap:round;opacity:.88}',
-      '.node-shape{stroke-width:' + (hc ? '2.5' : '1.75') + '}',
-      '.node.root .node-shape{stroke-width:' + (hc ? '3' : '1.5') + '}',
+      hc ? '.node-shape{stroke-width:2.5}' : '',
+      hc ? '.node.root .node-shape{stroke-width:3}' : '',
       '.node-icon{pointer-events:none}',
+      '.timeline-spine{stroke:' + (look.muted || look.link || '#64748B') + ';stroke-width:3.5;stroke-linecap:round;fill:none}',
+      '.timeline-stem{stroke-width:2.5;stroke-linecap:round;fill:none}',
+      '.timeline-dot{stroke:' + (look.bg || '#FFFFFF') + ';stroke-width:2.5}',
       '.link{fill:none;stroke:' + look.text + ';stroke-width:1.75;stroke-dasharray:6 5;opacity:.65}',
       '.link-arrow{fill:' + look.text + '}',
       '.link-label rect{fill:' + look.surface + ';stroke:' + look.border + '}',
@@ -89,7 +93,7 @@
       '.badge-collapsed circle{fill:' + look.surface + ';stroke-width:1.75}',
       '.badge-collapsed text{fill:' + look.text + ';font-weight:bold;letter-spacing:0}',
       '.badge-note circle{fill:' + look.surface + ';stroke-width:1.5}'
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   }
 
   function svgEl(name, attrs, parent) {
@@ -101,8 +105,18 @@
 
   /** Toglie selezione, evidenziazioni ed elementi che servono solo all'editor. */
   function cleanClone(content) {
-    var drop = content.querySelectorAll('.measure, .link-hit');
+    var drop = content.querySelectorAll('.measure, .link-hit, .link-handle, .badge-lock, .summary-brace-hit');
     for (var i = 0; i < drop.length; i++) drop[i].parentNode.removeChild(drop[i]);
+    var clipMap = {};
+    var clips = content.querySelectorAll('clipPath[id]');
+    for (var ci = 0; ci < clips.length; ci++) {
+      var oldId = clips[ci].getAttribute('id');
+      if (oldId && oldId.indexOf('mmx-') !== 0) {
+        var newId = 'mmx-' + oldId;
+        clipMap[oldId] = newId;
+        clips[ci].setAttribute('id', newId);
+      }
+    }
     var all = content.querySelectorAll('*');
     for (var j = 0; j < all.length; j++) {
       var e = all[j];
@@ -111,6 +125,11 @@
       if (e.getAttribute('marker-end')) e.setAttribute('marker-end', 'url(#' + ARROW_ID + ')');
       var flt = e.getAttribute('filter');
       if (flt && flt.indexOf('mm-node-shadow') >= 0) e.setAttribute('filter', 'url(#' + SHADOW_ID + ')');
+      var cp = e.getAttribute('clip-path');
+      if (cp) {
+        var m = cp.match(/^url\(#([^)]+)\)$/);
+        if (m && clipMap[m[1]]) e.setAttribute('clip-path', 'url(#' + clipMap[m[1]] + ')');
+      }
       // Le etichette vuote sono nascoste con display:none: si eliminano del tutto.
       if (e.style && e.style.display === 'none' && e.parentNode) e.parentNode.removeChild(e);
     }

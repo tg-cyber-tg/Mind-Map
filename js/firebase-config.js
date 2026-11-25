@@ -22,5 +22,12 @@
 (function (root) {
   'use strict';
   root.MM = root.MM || {};
-  root.MM.firebaseConfig = null;
+  root.MM.firebaseConfig = {
+    apiKey: 'AIzaSyC4f0AZYq8Q0QIgTQ2dtwAa9uAlWkDamVA',
+    authDomain: 'mappe-mentali-d16a1.firebaseapp.com',
+    projectId: 'mappe-mentali-d16a1',
+    storageBucket: 'mappe-mentali-d16a1.firebasestorage.app',
+    messagingSenderId: '1070530960794',
+    appId: '1:1070530960794:web:04a5c0f21c81b73b77ee23'
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

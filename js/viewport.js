@@ -27,7 +27,9 @@
     var listeners = [];
     var animId = null;
     var applyRaf = null;
-    var lastNotifiedScale = -1;
+    var lastNotifiedX = NaN;
+    var lastNotifiedY = NaN;
+    var lastNotifiedScale = NaN;
     var cachedRect = null;
 
     function refreshRect() {
@@ -73,12 +75,16 @@
 
     function applyNow() {
       applyRaf = null;
+      var rx = round(state.x, 1);
+      var ry = round(state.y, 1);
+      var rs = round(state.scale, 4);
       worldEl.style.transform =
-        'translate3d(' + round(state.x, 1) + 'px, ' + round(state.y, 1) + 'px, 0) scale(' + round(state.scale, 4) + ')';
+        'translate3d(' + rx + 'px, ' + ry + 'px, 0) scale(' + rs + ')';
       syncGrid();
-      var pct = Math.round(state.scale * 100);
-      if (pct !== lastNotifiedScale) {
-        lastNotifiedScale = pct;
+      if (rx !== lastNotifiedX || ry !== lastNotifiedY || rs !== lastNotifiedScale) {
+        lastNotifiedX = rx;
+        lastNotifiedY = ry;
+        lastNotifiedScale = rs;
         var snap = getState();
         listeners.forEach(function (cb) { cb(snap); });
       }

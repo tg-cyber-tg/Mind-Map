@@ -7,8 +7,8 @@
   'use strict';
   var MM = root.MM;
 
-  /** @typedef {'rounded'|'ellipse'|'rect'} NodeShape */
-  /** @typedef {'radial'|'tree'} LayoutKind */
+  /** @typedef {'rounded'|'rect'|'ellipse'|'circle'} NodeShape */
+  /** @typedef {'radial'|'tree'|'balanced'|'org'|'timeline'|'fishbone'|'outline'|'compare'} LayoutKind */
   /**
    * @typedef {Object} MapNode
    * @property {string} id
@@ -53,8 +53,10 @@
 
   var FILE_VERSION = 1;
   var MAX_TEXT = 200;
-  var SHAPES = ['rounded', 'ellipse', 'rect'];
-  var LAYOUTS = ['radial', 'tree'];
+  var SHAPES = ['rounded', 'rect', 'ellipse', 'circle'];
+  var LAYOUTS = ['radial', 'tree', 'balanced', 'org', 'timeline', 'fishbone', 'outline', 'compare'];
+  var SUB_LAYOUTS = ['radial', 'balanced', 'tree', 'org', 'timeline', 'fishbone', 'outline'];
+  var LINK_STYLES = ['curved', 'straight', 'elbow'];
   var THEMES = ['auto', 'chiaro', 'scuro', 'alto-contrasto'];
 
   /** Risolve 'auto' in 'chiaro' o 'scuro' seguendo le preferenze del sistema (Mac/iPad). */
@@ -70,10 +72,13 @@
     return theme || 'chiaro';
   }
   var ROOT_COLOR = '#1E293B';
-  // Colori dei rami: palette adulta e armoniosa ad alto contrasto.
+  // Colori dei rami: palette adulta e armoniosa ad alto contrasto (24 tonalità).
   var PALETTE = [
     '#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777',
-    '#0891B2', '#EA580C', '#4F46E5', '#65A30D', '#DC2626'
+    '#0891B2', '#EA580C', '#4F46E5', '#65A30D', '#DC2626',
+    '#E11D48', '#F97316', '#CA8A04', '#16A34A', '#0D9488',
+    '#0284C7', '#1D4ED8', '#9333EA', '#C026D3', '#F43F5E',
+    '#B45309', '#78350F', '#475569', '#334155'
   ];
   // I 25 caratteri più usati in Microsoft Word (con fallback di sistema offline).
   var WORD_FONTS = [
@@ -105,6 +110,8 @@
   ];
   var FONT_SIZES = [10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
   var TEXT_COLORS = ['', '#0F172A', '#475569', '#14532D', '#1D4ED8', '#B91C1C', '#6D28D9', '#C2410C', '#FFFFFF'];
+  var TEXT_ALIGNS = ['left', 'center', 'right', 'justify'];
+  var PASTEL_FILLS = ['', '#FFFFFF', '#F8FAFC', '#EFF6FF', '#ECFEFF', '#ECFDF5', '#F0FDF4', '#FEFCE8', '#FFF7ED', '#FEF2F2', '#FDF2F8', '#FAF5FF', '#EEF2FF', '#F5F3FF', '#F1F5F9', '#FEF9C3'];
 
   function fontCssFor(name) {
     if (!name) return WORD_FONTS[0].css;
@@ -119,8 +126,99 @@
     theme: 'chiaro',
     uppercase: false,
     fontScale: 1,
-    fontFamily: 'standard'
+    fontFamily: 'standard',
+    sizeByLevel: true
   };
+
+  /** Immagini nei nodi: data URL compressa (vedi ui.js), limite di sicurezza in caratteri. */
+  var IMAGE_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
+  var MAX_IMAGE_CHARS = 1500000;
+  var MAX_IMAGES_PER_NODE = 12;
+  var IMAGE_MAX_W = 150;
+  var IMAGE_MAX_H = 115;
+  var IMAGE_TILE_W = 92;
+  var IMAGE_TILE_H = 72;
+  var IMAGE_TILE_GAP = 6;
+
+  /** Restituisce l'elenco normalizzato delle immagini del nodo (compatibile con il vecchio campo node.image). */
+  function nodeImagesOf(node) {
+    if (!node) return [];
+    if (Array.isArray(node.images) && node.images.length) return node.images;
+    if (node.image && node.imageW && node.imageH) {
+      return [{ src: node.image, w: node.imageW, h: node.imageH }];
+    }
+    return [];
+  }
+
+  /**
+   * Dimensioni e posizioni delle immagini del nodo (o null), già scalate con la casella.
+   * Restituisce { width, height, items: [{ src, x, y, width, height }] } con x centrato intorno a 0 e y da 0.
+   */
+  function imageBoxFor(node, scale) {
+    var imgs = nodeImagesOf(node);
+    if (!imgs.length) return null;
+    var s = scale || 1;
+    if (imgs.length === 1) {
+      var im = imgs[0];
+      var k = Math.min((IMAGE_MAX_W * s) / im.w, (IMAGE_MAX_H * s) / im.h);
+      var w1 = Math.max(24, Math.round(im.w * k));
+      var h1 = Math.max(24, Math.round(im.h * k));
+      return {
+        width: w1,
+        height: h1,
+        items: [{ src: im.src, x: -w1 / 2, y: 0, width: w1, height: h1 }]
+      };
+    }
+    var cols = (imgs.length === 2 || imgs.length === 4) ? 2 : 3;
+    var tileW = Math.round(IMAGE_TILE_W * s);
+    var tileH = Math.round(IMAGE_TILE_H * s);
+    var gap = Math.max(4, Math.round(IMAGE_TILE_GAP * s));
+    var rows = Math.ceil(imgs.length / cols);
+    var totalW = cols * tileW + (cols - 1) * gap;
+    var totalH = rows * tileH + (rows - 1) * gap;
+    var items = [];
+    for (var i = 0; i < imgs.length; i++) {
+      var r = Math.floor(i / cols);
+      var c = i % cols;
+      var inRow = Math.min(cols, imgs.length - r * cols);
+      var rowW = inRow * tileW + (inRow - 1) * gap;
+      var x = -rowW / 2 + c * (tileW + gap);
+      var y = r * (tileH + gap);
+      items.push({ src: imgs[i].src, x: x, y: y, width: tileW, height: tileH });
+    }
+    return { width: totalW, height: totalH, items: items };
+  }
+
+  /** Grandezza della singola casella (M = normale, non salvata). */
+  var BOX_SIZES = [
+    { id: 'S', label: 'Piccola', scale: 0.85 },
+    { id: 'M', label: 'Normale', scale: 1 },
+    { id: 'L', label: 'Grande', scale: 1.25 },
+    { id: 'XL', label: 'Molto grande', scale: 1.55 }
+  ];
+  /** Fattore per livello: centro (1.20), poi -5% per ogni livello successivo. */
+  var LEVEL_SCALES = [1.20, 1.14, 1.08, 1.02];
+
+  /**
+   * Fattore di grandezza della casella: livello (se attivo "più grandi vicino al centro",
+   * -5% per ogni livello di profondità a partire da 1.20 al centro)
+   * moltiplicato per la grandezza scelta per il singolo nodo.
+   * depth facoltativo: se manca, 0 per la radice e 2 (normale) per gli altri.
+   */
+  function boxScaleFor(node, settings, depth) {
+    var d = typeof depth === 'number' ? depth : (node.parentId === null ? 0 : 2);
+    if (settings && settings.layout === 'compare' && typeof depth === 'number' && depth > 0) {
+      d = depth - 1;
+    }
+    var level;
+    if (settings && settings.sizeByLevel === false) level = d === 0 ? 1.20 : 1;
+    else level = Math.max(0.72, 1.20 * (1 - 0.05 * d));
+    var own = 1;
+    for (var i = 0; i < BOX_SIZES.length; i++) {
+      if (BOX_SIZES[i].id === node.boxSize) { own = BOX_SIZES[i].scale; break; }
+    }
+    return level * own;
+  }
   var COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
   var counter = 0;
@@ -179,6 +277,7 @@
       rootId: rootNode.id,
       nodes: nodes,
       links: [],
+      summaries: [],
       settings: clone(DEFAULT_SETTINGS),
       createdAt: now,
       updatedAt: now
@@ -204,14 +303,39 @@
   /** Nodi visibili: esclude i discendenti dei nodi compressi. */
   function getVisibleNodeIds(map) {
     var result = [];
-    var stack = [map.rootId];
-    while (stack.length) {
-      var id = stack.pop();
-      var n = map.nodes[id];
-      if (!n) continue;
-      result.push(id);
-      if (n.collapsed) continue;
-      for (var i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i]);
+    var seen = {};
+    function walk(startIds) {
+      var stack = startIds.slice().reverse();
+      while (stack.length) {
+        var id = stack.pop();
+        if (seen[id]) continue;
+        var n = map.nodes[id];
+        if (!n) continue;
+        seen[id] = true;
+        result.push(id);
+        if (n.collapsed) continue;
+        for (var i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i]);
+      }
+    }
+    walk([map.rootId]);
+    var sums = Array.isArray(map.summaries) ? map.summaries : [];
+    var walkedSum = {};
+    var progress = true;
+    while (progress) {
+      progress = false;
+      for (var s = 0; s < sums.length; s++) {
+        if (walkedSum[s] || !sums[s] || !Array.isArray(sums[s].children) || !sums[s].children.length) continue;
+        var covered = getSummaryNodes(map, sums[s]);
+        var anyVisible = false;
+        for (var ci = 0; ci < covered.length; ci++) {
+          if (seen[covered[ci]]) { anyVisible = true; break; }
+        }
+        if (anyVisible) {
+          walkedSum[s] = true;
+          progress = true;
+          walk(sums[s].children);
+        }
+      }
     }
     return result;
   }
@@ -222,8 +346,12 @@
     var n = assertNode(map, nodeId);
     var guard = 0;
     while (n.parentId !== null && guard++ < 10000) {
-      n = map.nodes[n.parentId];
-      if (!n) break;
+      var parent = map.nodes[n.parentId];
+      if (!parent) {
+        if (findSummary(map, n.parentId)) return depth + 2;
+        break;
+      }
+      n = parent;
       depth++;
     }
     return depth;
@@ -233,8 +361,46 @@
   function getBranchRoot(map, nodeId) {
     var n = assertNode(map, nodeId);
     if (n.parentId === null) return null;
-    while (n.parentId !== map.rootId) n = map.nodes[n.parentId];
+    var guard = 0;
+    while (n.parentId !== map.rootId && guard++ < 10000) {
+      var next = map.nodes[n.parentId];
+      if (!next) return n;
+      n = next;
+    }
     return n;
+  }
+
+  /** Numero gerarchico dell'argomento ('' per la radice, '1', '2', '1.1', 'R.1', ...). */
+  function getTopicNumber(map, nodeId) {
+    var cur = assertNode(map, nodeId);
+    if (cur.parentId === null) return '';
+    var parts = [];
+    var curId = nodeId;
+    var guard = 0;
+    while (cur && cur.parentId !== null && guard++ < 10000) {
+      var parent = map.nodes[cur.parentId];
+      if (!parent) {
+        var sum = findSummary(map, cur.parentId);
+        if (sum && Array.isArray(sum.children)) {
+          var sIdx = sum.children.indexOf(curId);
+          parts.push(sIdx >= 0 ? sIdx + 1 : 1);
+          parts.push('R');
+        }
+        break;
+      }
+      var idx = parent.children.indexOf(curId);
+      parts.push(idx >= 0 ? idx + 1 : 1);
+      curId = cur.parentId;
+      cur = parent;
+    }
+    parts.reverse();
+    return parts.join('.');
+  }
+
+  /** Etichetta leggibile dell'argomento ('Argomento centrale', 'Argomento 1', 'Argomento 1.1', ...). */
+  function getTopicLabel(map, nodeId) {
+    var num = getTopicNumber(map, nodeId);
+    return num ? 'Argomento ' + num : 'Argomento centrale';
   }
 
   /* ---------- Operazioni sui nodi ---------- */
@@ -270,6 +436,15 @@
   function addSibling(map, nodeId, text) {
     var node = assertNode(map, nodeId);
     if (node.parentId === null) return addChild(map, nodeId, text);
+    if (!map.nodes[node.parentId] && findSummary(map, node.parentId)) {
+      var sRes = addChildToSummary(map, node.parentId, text);
+      var s = findSummary(sRes.map, node.parentId);
+      s.children.pop();
+      s.children.splice(s.children.indexOf(nodeId) + 1, 0, sRes.nodeId);
+      sRes.map.nodes[sRes.nodeId].x = node.x;
+      sRes.map.nodes[sRes.nodeId].y = node.y + 60;
+      return { map: sRes.map, nodeId: sRes.nodeId };
+    }
     var res = addChild(map, node.parentId, text);
     var parent = res.map.nodes[node.parentId];
     parent.children.pop();
@@ -279,14 +454,9 @@
     return res;
   }
 
-  /** Aggiorna i campi modificabili del nodo (non id, parentId, children). */
-  function updateNode(map, nodeId, patch) {
-    var m = clone(map);
-    var n = assertNode(m, nodeId);
-    var p = patch || {};
+  /** Applica i campi di contenuto e formattazione condivisi tra nodi e caselle di riepilogo. */
+  function applyStylePatch(n, p) {
     if (p.text !== undefined) n.text = String(p.text).slice(0, MAX_TEXT);
-    if (typeof p.x === 'number') n.x = p.x;
-    if (typeof p.y === 'number') n.y = p.y;
     if (p.color !== undefined) {
       if (!COLOR_RE.test(p.color)) throw new Error('Colore non valido: ' + p.color);
       n.color = p.color;
@@ -297,7 +467,10 @@
     }
     if (p.icon !== undefined) n.icon = String(p.icon);
     if (p.note !== undefined) n.note = String(p.note);
-    if (p.collapsed !== undefined) n.collapsed = !!p.collapsed;
+    if (p.comment !== undefined) {
+      if (!p.comment || !String(p.comment).trim()) delete n.comment;
+      else n.comment = String(p.comment);
+    }
     // Formattazione carattere stile Word (opzionale per singolo nodo).
     if (p.fontName !== undefined) {
       if (!p.fontName) delete n.fontName;
@@ -328,13 +501,138 @@
       if (!p.uppercase) delete n.uppercase;
       else n.uppercase = true;
     }
+    if (p.images !== undefined) {
+      delete n.image; delete n.imageW; delete n.imageH;
+      if (!p.images || !p.images.length) {
+        delete n.images;
+      } else {
+        if (!Array.isArray(p.images)) throw new Error('Elenco immagini non valido');
+        if (p.images.length > MAX_IMAGES_PER_NODE) throw new Error('Troppe immagini nella stessa casella (massimo ' + MAX_IMAGES_PER_NODE + ')');
+        n.images = p.images.map(function (item) {
+          var src = String((item && item.src) || '');
+          if (!IMAGE_RE.test(src)) throw new Error('Immagine non valida');
+          if (src.length > MAX_IMAGE_CHARS) throw new Error('Immagine troppo grande');
+          var w = Number(item && item.w), hh = Number(item && item.h);
+          if (!isFinite(w) || !isFinite(hh) || w <= 0 || hh <= 0) throw new Error('Dimensioni immagine non valide');
+          return { src: src, w: Math.round(Math.min(4096, w)), h: Math.round(Math.min(4096, hh)) };
+        });
+      }
+    }
+    if (p.image !== undefined) {
+      delete n.images;
+      if (!p.image) { delete n.image; delete n.imageW; delete n.imageH; }
+      else {
+        var img = String(p.image);
+        if (!IMAGE_RE.test(img)) throw new Error('Immagine non valida');
+        if (img.length > MAX_IMAGE_CHARS) throw new Error('Immagine troppo grande');
+        var iw = Number(p.imageW), ih = Number(p.imageH);
+        if (!isFinite(iw) || !isFinite(ih) || iw <= 0 || ih <= 0) throw new Error('Dimensioni immagine non valide');
+        n.image = img;
+        n.imageW = Math.round(Math.min(4096, iw));
+        n.imageH = Math.round(Math.min(4096, ih));
+      }
+    }
+    if (p.boxSize !== undefined) {
+      var okBox = BOX_SIZES.some(function (b) { return b.id === p.boxSize; });
+      if (!p.boxSize || p.boxSize === 'M' || !okBox) delete n.boxSize;
+      else n.boxSize = p.boxSize;
+    }
     if (p.textColor !== undefined) {
       if (!p.textColor) delete n.textColor;
       else if (COLOR_RE.test(p.textColor)) n.textColor = p.textColor;
     }
+    if (p.bullets !== undefined) {
+      if (!p.bullets) delete n.bullets;
+      else n.bullets = true;
+    }
+    if (p.textAlign !== undefined) {
+      if (!p.textAlign || p.textAlign === 'center') delete n.textAlign;
+      else if (TEXT_ALIGNS.indexOf(p.textAlign) >= 0) n.textAlign = p.textAlign;
+    }
+    if (p.fillColor !== undefined) {
+      if (!p.fillColor) delete n.fillColor;
+      else if (COLOR_RE.test(p.fillColor)) n.fillColor = p.fillColor;
+    }
+    if (p.personMode !== undefined) {
+      if (!p.personMode) delete n.personMode;
+      else n.personMode = true;
+    }
+    if (p.role !== undefined) {
+      if (!p.role || !String(p.role).trim()) delete n.role;
+      else n.role = String(p.role).slice(0, 120);
+    }
+    if (p.avatarColor !== undefined) {
+      if (!p.avatarColor) delete n.avatarColor;
+      else if (COLOR_RE.test(p.avatarColor)) n.avatarColor = p.avatarColor;
+    }
+  }
+
+  /** Aggiorna i campi modificabili del nodo (non id, parentId, children). */
+  function updateNode(map, nodeId, patch) {
+    var m = clone(map);
+    var n = assertNode(m, nodeId);
+    var p = patch || {};
+    applyStylePatch(n, p);
+    if (typeof p.x === 'number') n.x = p.x;
+    if (typeof p.y === 'number') n.y = p.y;
+    if (p.subLayout !== undefined) {
+      if (!p.subLayout) delete n.subLayout;
+      else if (SUB_LAYOUTS.indexOf(p.subLayout) >= 0) n.subLayout = p.subLayout;
+    }
+    if (p.collapsed !== undefined) n.collapsed = !!p.collapsed;
     // Il testo del nodo centrale è anche il titolo della mappa.
     if (nodeId === m.rootId && p.text !== undefined) m.title = n.text;
     return m;
+  }
+
+  /** Rimuove o aggiorna le parentesi graffe che referenziano nodi eliminati, eliminando a cascata i figli delle parentesi rimosse. */
+  function pruneSummariesForRemoved(m, removedIds) {
+    if (!Array.isArray(m.summaries) || !m.summaries.length) return;
+    var pending = Array.isArray(removedIds) ? removedIds.slice() : [];
+    var removedSet = {};
+    for (var i = 0; i < pending.length; i++) removedSet[pending[i]] = true;
+
+    while (pending.length) {
+      pending = [];
+      var droppedSummaries = [];
+      m.summaries = m.summaries.filter(function (s) {
+        var keep;
+        if (Array.isArray(s.nodeIds)) {
+          s.nodeIds = s.nodeIds.filter(function (id) { return !removedSet[id]; });
+          keep = s.nodeIds.length >= 1;
+        } else {
+          keep = !removedSet[s.parentId] && !removedSet[s.startId] && !removedSet[s.endId];
+        }
+        if (!keep) droppedSummaries.push(s);
+        return keep;
+      });
+      if (droppedSummaries.length) {
+        var extraRemoved = [];
+        droppedSummaries.forEach(function (s) {
+          if (!Array.isArray(s.children)) return;
+          s.children.forEach(function (cid) {
+            if (m.nodes[cid]) {
+              extraRemoved.push(cid);
+              extraRemoved = extraRemoved.concat(getDescendants(m, cid));
+            }
+          });
+        });
+        if (extraRemoved.length) {
+          extraRemoved.forEach(function (id) {
+            delete m.nodes[id];
+            if (!removedSet[id]) {
+              removedSet[id] = true;
+              pending.push(id);
+            }
+          });
+          if (Array.isArray(m.links)) {
+            m.links = m.links.filter(function (l) {
+              return !removedSet[l.fromId] && !removedSet[l.toId];
+            });
+          }
+        }
+      }
+    }
   }
 
   /** Elimina il nodo, il suo sottoalbero e i collegamenti che li coinvolgono. */
@@ -344,11 +642,19 @@
     var m = clone(map);
     var removed = [nodeId].concat(getDescendants(m, nodeId));
     var parent = m.nodes[node.parentId];
-    parent.children = parent.children.filter(function (id) { return id !== nodeId; });
+    if (parent) {
+      parent.children = parent.children.filter(function (id) { return id !== nodeId; });
+    } else {
+      var parentSummary = findSummary(m, node.parentId);
+      if (parentSummary && Array.isArray(parentSummary.children)) {
+        parentSummary.children = parentSummary.children.filter(function (id) { return id !== nodeId; });
+      }
+    }
     removed.forEach(function (id) { delete m.nodes[id]; });
     m.links = m.links.filter(function (l) {
       return removed.indexOf(l.fromId) < 0 && removed.indexOf(l.toId) < 0;
     });
+    pruneSummariesForRemoved(m, removed);
     return m;
   }
 
@@ -380,7 +686,58 @@
     var m = clone(map);
     if (node.parentId === newParentId) return m;
     var oldParent = m.nodes[node.parentId];
-    oldParent.children = oldParent.children.filter(function (id) { return id !== nodeId; });
+    if (oldParent) {
+      if (Array.isArray(m.summaries) && m.summaries.length) {
+        var droppedFromReparent = [];
+        m.summaries = m.summaries.filter(function (s) {
+          if (!s || Array.isArray(s.nodeIds) || s.parentId !== oldParent.id) return true;
+          if (s.startId !== nodeId && s.endId !== nodeId) return true;
+          var i1 = oldParent.children.indexOf(s.startId);
+          var i2 = oldParent.children.indexOf(s.endId);
+          if (i1 < 0 || i2 < 0) return true;
+          var range = oldParent.children.slice(Math.min(i1, i2), Math.max(i1, i2) + 1).filter(function (id) {
+            return id !== nodeId;
+          });
+          if (range.length >= 1) {
+            s.startId = range[0];
+            s.endId = range[range.length - 1];
+            return true;
+          }
+          droppedFromReparent.push(s);
+          return false;
+        });
+        if (droppedFromReparent.length) {
+          var droppedNodes = [];
+          droppedFromReparent.forEach(function (s) {
+            if (!Array.isArray(s.children)) return;
+            s.children.forEach(function (cid) {
+              if (m.nodes[cid]) {
+                droppedNodes.push(cid);
+                droppedNodes = droppedNodes.concat(getDescendants(m, cid));
+              }
+            });
+          });
+          if (droppedNodes.length) {
+            droppedNodes.forEach(function (id) { delete m.nodes[id]; });
+            if (Array.isArray(m.links)) {
+              m.links = m.links.filter(function (l) {
+                return droppedNodes.indexOf(l.fromId) < 0 && droppedNodes.indexOf(l.toId) < 0;
+              });
+            }
+            pruneSummariesForRemoved(m, droppedNodes);
+          }
+        }
+      }
+      if (!m.nodes[newParentId]) {
+        throw new Error('Non puoi spostare un nodo dentro un ramo collegato alla sua stessa parentesi graffa');
+      }
+      oldParent.children = oldParent.children.filter(function (id) { return id !== nodeId; });
+    } else {
+      var oldSummary = findSummary(m, node.parentId);
+      if (oldSummary && Array.isArray(oldSummary.children)) {
+        oldSummary.children = oldSummary.children.filter(function (id) { return id !== nodeId; });
+      }
+    }
     // Il ramo spostato prende il colore del nuovo ramo di primo livello
     // (calcolato prima dell'inserimento, così non conta il colore attuale del nodo).
     var color = newParentId === m.rootId ? nextPaletteColor(m) : getBranchRoot(m, newParentId).color;
@@ -393,6 +750,60 @@
 
   function toggleCollapsed(map, nodeId) {
     return updateNode(map, nodeId, { collapsed: !assertNode(map, nodeId).collapsed });
+  }
+
+  /**
+   * Duplica un nodo e tutto il suo sottoalbero con nuovi id, agganciandolo sotto targetParentId.
+   * Clona anche eventuali collegamenti trasversali interni al sottoalbero.
+   * @returns {{map: MindMap, nodeId: string}}
+   */
+  function cloneSubtree(map, sourceId, targetParentId) {
+    assertNode(map, sourceId);
+    assertNode(map, targetParentId);
+    var m = clone(map);
+    // Istantanea degli id e dei collegamenti prima dell'inserimento (sicuro anche se targetParentId è nel sottoalbero).
+    var subIds = [sourceId].concat(getDescendants(m, sourceId));
+    var origLinks = (m.links || []).slice();
+    var idMap = {};
+    subIds.forEach(function (oldId) { idMap[oldId] = uid('n'); });
+
+    var srcRoot = m.nodes[sourceId];
+    var targetParent = m.nodes[targetParentId];
+    var dx = (targetParent.x + 200) - srcRoot.x;
+    var dy = (targetParent.y + targetParent.children.length * 60) - srcRoot.y;
+
+    var snapshots = {};
+    subIds.forEach(function (oldId) { snapshots[oldId] = clone(m.nodes[oldId]); });
+
+    subIds.forEach(function (oldId) {
+      var copy = snapshots[oldId];
+      copy.id = idMap[oldId];
+      copy.parentId = oldId === sourceId ? targetParentId : idMap[copy.parentId];
+      copy.children = copy.children.map(function (cid) { return idMap[cid]; });
+      copy.x = copy.x + dx;
+      copy.y = copy.y + dy;
+      m.nodes[copy.id] = copy;
+    });
+
+    var newRootId = idMap[sourceId];
+    targetParent.children.push(newRootId);
+    targetParent.collapsed = false;
+
+    origLinks.forEach(function (l) {
+      if (idMap[l.fromId] && idMap[l.toId]) {
+        var copyLink = {
+          id: uid('l'),
+          fromId: idMap[l.fromId],
+          toId: idMap[l.toId],
+          label: l.label || ''
+        };
+        if (l.style) copyLink.style = l.style;
+        if (typeof l.curve === 'number' && isFinite(l.curve)) copyLink.curve = l.curve;
+        m.links.push(copyLink);
+      }
+    });
+
+    return { map: m, nodeId: newRootId };
   }
 
   /* ---------- Collegamenti trasversali ---------- */
@@ -419,8 +830,17 @@
 
   function updateLink(map, linkId, patch) {
     var m = clone(map);
-    var link = m.links[findLinkIndex(m, linkId)];
-    if (patch && patch.label !== undefined) link.label = String(patch.label).slice(0, MAX_TEXT);
+    var l = m.links[findLinkIndex(m, linkId)];
+    var p = patch || {};
+    if (p.label !== undefined) l.label = String(p.label).slice(0, MAX_TEXT);
+    if (p.style !== undefined) {
+      if (!p.style || p.style === 'curved') delete l.style;
+      else if (LINK_STYLES.indexOf(p.style) >= 0) l.style = p.style;
+    }
+    if (p.curve !== undefined) {
+      if (p.curve === null || p.curve === '') delete l.curve;
+      else if (isFinite(Number(p.curve))) l.curve = Math.max(-300, Math.min(300, Math.round(Number(p.curve))));
+    }
     return m;
   }
 
@@ -443,6 +863,152 @@
   /** Collegamenti trasversali che partono da o arrivano a un nodo. */
   function getLinksOf(map, nodeId) {
     return (map.links || []).filter(function (l) { return l.fromId === nodeId || l.toId === nodeId; });
+  }
+
+  /* ---------- Parentesi graffe di riepilogo (stile XMind) ---------- */
+
+  /** Restituisce la parentesi graffa con l'id dato, oppure null. */
+  function findSummary(map, summaryId) {
+    var list = (map && Array.isArray(map.summaries)) ? map.summaries : [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === summaryId) return list[i];
+    }
+    return null;
+  }
+
+  /** Aggiunge un nodo figlio collegato a una parentesi graffa. @returns {{map: MindMap, nodeId: string}} */
+  function addChildToSummary(map, summaryId, text) {
+    var orig = findSummary(map, summaryId);
+    if (!orig) throw new Error('Parentesi graffa non trovata');
+    var m = clone(map);
+    var s = findSummary(m, summaryId);
+    if (!Array.isArray(s.children)) s.children = [];
+    var node = createNode({
+      parentId: s.id,
+      text: text === undefined ? 'Nuova idea' : text,
+      color: s.color || PALETTE[0],
+      shape: 'rounded',
+      x: 0,
+      y: 0
+    });
+    m.nodes[node.id] = node;
+    s.children.push(node.id);
+    return { map: m, nodeId: node.id };
+  }
+
+  /** Restituisce gli id dei nodi inclusi in una parentesi graffa (elenco arbitrario nodeIds o intervallo [startId..endId]). */
+  function getSummaryNodes(map, summary) {
+    if (!summary) return [];
+    if (Array.isArray(summary.nodeIds) && summary.nodeIds.length) {
+      return summary.nodeIds.filter(function (id) { return !!map.nodes[id]; });
+    }
+    var parent = map.nodes[summary.parentId];
+    if (!parent || !Array.isArray(parent.children)) return [];
+    var i1 = parent.children.indexOf(summary.startId);
+    var i2 = parent.children.indexOf(summary.endId);
+    if (i1 < 0 || i2 < 0) return [];
+    return parent.children.slice(Math.min(i1, i2), Math.max(i1, i2) + 1);
+  }
+
+  /** @returns {{map: MindMap, summaryId: string}} */
+  function addSummaryForNodes(map, nodeIds, text) {
+    var list = Array.isArray(nodeIds) ? nodeIds : [];
+    var uniqueIds = [];
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      if (id && !seen[id] && map.nodes[id]) {
+        seen[id] = true;
+        uniqueIds.push(id);
+      }
+    }
+    if (uniqueIds.length < 2) {
+      throw new Error('Seleziona almeno 2 nodi per creare una parentesi graffa');
+    }
+    var m = clone(map);
+    if (!Array.isArray(m.summaries)) m.summaries = [];
+    var s = {
+      id: uid('s'),
+      nodeIds: uniqueIds,
+      text: String(text || 'Riepilogo').slice(0, MAX_TEXT),
+      color: m.nodes[uniqueIds[0]].color
+    };
+    m.summaries.push(s);
+    return { map: m, summaryId: s.id };
+  }
+
+  /** @returns {{map: MindMap, summaryId: string}} */
+  function addSummary(map, parentId, startId, endId, text) {
+    assertNode(map, parentId);
+    assertNode(map, startId);
+    assertNode(map, endId);
+    var origParent = map.nodes[parentId];
+    var i1 = origParent.children.indexOf(startId);
+    var i2 = origParent.children.indexOf(endId);
+    if (i1 < 0 || i2 < 0) throw new Error('I nodi devono essere fratelli dello stesso genitore');
+    var m = clone(map);
+    if (!Array.isArray(m.summaries)) m.summaries = [];
+    var orderedStart = i1 <= i2 ? startId : endId;
+    var orderedEnd = i1 <= i2 ? endId : startId;
+    var s = {
+      id: uid('s'),
+      parentId: parentId,
+      startId: orderedStart,
+      endId: orderedEnd,
+      text: String(text || 'Riepilogo').slice(0, MAX_TEXT),
+      color: m.nodes[orderedStart].color
+    };
+    m.summaries.push(s);
+    return { map: m, summaryId: s.id };
+  }
+
+  function updateSummary(map, summaryId, patch) {
+    var m = clone(map);
+    var list = Array.isArray(m.summaries) ? m.summaries : [];
+    var s = null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === summaryId) { s = list[i]; break; }
+    }
+    if (!s) throw new Error('Parentesi graffa non trovata');
+    var p = patch || {};
+    applyStylePatch(s, p);
+    if (p.startId !== undefined || p.endId !== undefined) {
+      var parent = m.nodes[s.parentId];
+      var nextStart = p.startId !== undefined ? p.startId : s.startId;
+      var nextEnd = p.endId !== undefined ? p.endId : s.endId;
+      var i1 = parent ? parent.children.indexOf(nextStart) : -1;
+      var i2 = parent ? parent.children.indexOf(nextEnd) : -1;
+      if (i1 < 0 || i2 < 0) throw new Error('I nodi devono essere fratelli dello stesso genitore');
+      s.startId = i1 <= i2 ? nextStart : nextEnd;
+      s.endId = i1 <= i2 ? nextEnd : nextStart;
+    }
+    return m;
+  }
+
+  function removeSummary(map, summaryId) {
+    var m = clone(map);
+    var s = findSummary(m, summaryId);
+    var removed = [];
+    if (s && Array.isArray(s.children) && s.children.length) {
+      for (var i = 0; i < s.children.length; i++) {
+        var cid = s.children[i];
+        if (m.nodes[cid]) {
+          removed.push(cid);
+          removed = removed.concat(getDescendants(m, cid));
+        }
+      }
+      removed.forEach(function (id) { delete m.nodes[id]; });
+      if (Array.isArray(m.links)) {
+        m.links = m.links.filter(function (l) {
+          return removed.indexOf(l.fromId) < 0 && removed.indexOf(l.toId) < 0;
+        });
+      }
+    }
+    if (Array.isArray(m.summaries)) {
+      m.summaries = m.summaries.filter(function (item) { return item.id !== summaryId; });
+    }
+    if (removed.length) pruneSummariesForRemoved(m, removed);
+    return m;
   }
 
   /* ---------- Utilità ---------- */
@@ -493,6 +1059,28 @@
     if (roots.length !== 1) errors.push('Ci deve essere esattamente un nodo centrale (trovati ' + roots.length + ')');
     if (!map.nodes[map.rootId] || map.nodes[map.rootId].parentId !== null) errors.push('Nodo centrale non valido');
 
+    var summaryMap = {};
+    if (Array.isArray(map.summaries)) {
+      map.summaries.forEach(function (s) {
+        if (!s || !s.id) return;
+        summaryMap[s.id] = s;
+        if (s.color && !COLOR_RE.test(s.color)) errors.push('Colore non valido nel riepilogo ' + s.id);
+        if (s.fillColor && !COLOR_RE.test(s.fillColor)) errors.push('Colore sfondo non valido nel riepilogo ' + s.id);
+        if (s.textColor && !COLOR_RE.test(s.textColor)) errors.push('Colore testo non valido nel riepilogo ' + s.id);
+        if (s.images !== undefined && s.images !== null) {
+          if (!Array.isArray(s.images) || s.images.length > MAX_IMAGES_PER_NODE) {
+            errors.push('Elenco immagini non valido nel riepilogo ' + s.id);
+          } else {
+            s.images.forEach(function (img) {
+              if (!img || typeof img.src !== 'string' || img.src.length > MAX_IMAGE_CHARS || !IMAGE_RE.test(img.src)) {
+                errors.push('Immagine non valida nel riepilogo ' + s.id);
+              }
+            });
+          }
+        }
+      });
+    }
+
     ids.forEach(function (id) {
       var n = map.nodes[id];
       if (!n || n.id !== id) { errors.push('Nodo con id incoerente: ' + id); return; }
@@ -501,6 +1089,25 @@
         errors.push('Posizione non valida nel nodo ' + id);
       }
       if (!COLOR_RE.test(n.color)) errors.push('Colore non valido nel nodo ' + id);
+      if (n.fillColor && !COLOR_RE.test(n.fillColor)) errors.push('Colore sfondo non valido nel nodo ' + id);
+      if (n.textColor && !COLOR_RE.test(n.textColor)) errors.push('Colore testo non valido nel nodo ' + id);
+      if (n.avatarColor && !COLOR_RE.test(n.avatarColor)) errors.push('Colore profilo non valido nel nodo ' + id);
+      if (n.image !== undefined && n.image !== null && n.image !== '') {
+        if (typeof n.image !== 'string' || n.image.length > MAX_IMAGE_CHARS || !IMAGE_RE.test(n.image)) {
+          errors.push('Immagine non valida nel nodo ' + id);
+        }
+      }
+      if (n.images !== undefined && n.images !== null) {
+        if (!Array.isArray(n.images) || n.images.length > MAX_IMAGES_PER_NODE) {
+          errors.push('Elenco immagini non valido nel nodo ' + id);
+        } else {
+          n.images.forEach(function (img) {
+            if (!img || typeof img.src !== 'string' || img.src.length > MAX_IMAGE_CHARS || !IMAGE_RE.test(img.src)) {
+              errors.push('Immagine non valida nel nodo ' + id);
+            }
+          });
+        }
+      }
       if (SHAPES.indexOf(n.shape) < 0) errors.push('Forma non valida nel nodo ' + id);
       if (!Array.isArray(n.children)) { errors.push('Figli non validi nel nodo ' + id); return; }
       n.children.forEach(function (c) {
@@ -509,7 +1116,10 @@
       });
       if (n.parentId !== null) {
         var p = map.nodes[n.parentId];
-        if (!p || !Array.isArray(p.children) || p.children.indexOf(id) < 0) {
+        var sp = !p ? summaryMap[n.parentId] : null;
+        var inParent = p && Array.isArray(p.children) && p.children.indexOf(id) >= 0;
+        var inSummary = sp && Array.isArray(sp.children) && sp.children.indexOf(id) >= 0;
+        if (!inParent && !inSummary) {
           errors.push('Il nodo ' + id + ' non compare tra i figli del suo genitore');
         }
       }
@@ -519,6 +1129,15 @@
     if (errors.length === 0) {
       var seen = {};
       var stack = [map.rootId];
+      if (Array.isArray(map.summaries)) {
+        map.summaries.forEach(function (s) {
+          if (s && Array.isArray(s.children)) {
+            s.children.forEach(function (c) {
+              if (map.nodes[c]) stack.push(c);
+            });
+          }
+        });
+      }
       while (stack.length) {
         var cur = stack.pop();
         if (seen[cur]) { errors.push('Ciclo rilevato nel nodo ' + cur); break; }
@@ -545,17 +1164,21 @@
 
   MM.model = {
     FILE_VERSION: FILE_VERSION, MAX_TEXT: MAX_TEXT, SHAPES: SHAPES, LAYOUTS: LAYOUTS,
+    SUB_LAYOUTS: SUB_LAYOUTS, LINK_STYLES: LINK_STYLES,
     THEMES: THEMES, resolveTheme: resolveTheme, PALETTE: PALETTE, ROOT_COLOR: ROOT_COLOR, DEFAULT_SETTINGS: DEFAULT_SETTINGS,
-    WORD_FONTS: WORD_FONTS, FONT_SIZES: FONT_SIZES, TEXT_COLORS: TEXT_COLORS, fontCssFor: fontCssFor,
+    WORD_FONTS: WORD_FONTS, FONT_SIZES: FONT_SIZES, TEXT_COLORS: TEXT_COLORS, TEXT_ALIGNS: TEXT_ALIGNS, PASTEL_FILLS: PASTEL_FILLS, fontCssFor: fontCssFor,
+    BOX_SIZES: BOX_SIZES, LEVEL_SCALES: LEVEL_SCALES, boxScaleFor: boxScaleFor,
+    imageBoxFor: imageBoxFor, nodeImagesOf: nodeImagesOf, MAX_IMAGE_CHARS: MAX_IMAGE_CHARS, MAX_IMAGES_PER_NODE: MAX_IMAGES_PER_NODE,
     uid: uid, clone: clone, nowIso: nowIso,
     createNode: createNode, createMap: createMap,
     getDescendants: getDescendants, getVisibleNodeIds: getVisibleNodeIds,
-    getDepth: getDepth, getBranchRoot: getBranchRoot,
+    getDepth: getDepth, getBranchRoot: getBranchRoot, getTopicNumber: getTopicNumber, getTopicLabel: getTopicLabel,
     addChild: addChild, addSibling: addSibling, updateNode: updateNode,
     removeNode: removeNode, moveNode: moveNode, reparent: reparent,
-    toggleCollapsed: toggleCollapsed,
+    toggleCollapsed: toggleCollapsed, cloneSubtree: cloneSubtree,
     addLink: addLink, updateLink: updateLink, removeLink: removeLink,
     reverseLink: reverseLink, getLinksOf: getLinksOf,
+    addSummary: addSummary, addSummaryForNodes: addSummaryForNodes, addChildToSummary: addChildToSummary, findSummary: findSummary, updateSummary: updateSummary, removeSummary: removeSummary, getSummaryNodes: getSummaryNodes,
     toOutline: toOutline, textColorFor: textColorFor, validate: validate
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

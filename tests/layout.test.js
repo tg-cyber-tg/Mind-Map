@@ -66,6 +66,13 @@
           L.setMeasurer(null);
         }
       });
+      it('calcola un riquadro quadrato per la forma circle', function () {
+        var s = M.DEFAULT_SETTINGS;
+        var rect = L.measureNode(M.createNode({ parentId: 'x', text: 'Cerchio', shape: 'rect' }), s);
+        var circle = L.measureNode(M.createNode({ parentId: 'x', text: 'Cerchio', shape: 'circle' }), s);
+        assert.equal(circle.width, circle.height);
+        assert.ok(circle.width > rect.width && circle.height > rect.height);
+      });
     });
 
     describe('radial', function () {
@@ -113,12 +120,157 @@
       });
     });
 
+    describe('balanced', function () {
+      it('mette la radice a (0,0) e distribuisce i rami a destra e a sinistra', function () {
+        var map = L.balanced(bigMap('balanced'));
+        assert.equal(map.nodes[map.rootId].x, 0);
+        assert.equal(map.nodes[map.rootId].y, 0);
+        var kids = map.nodes[map.rootId].children;
+        var hasRight = kids.some(function (id) { return map.nodes[id].x > 0; });
+        var hasLeft = kids.some(function (id) { return map.nodes[id].x < 0; });
+        assert.ok(hasRight && hasLeft, 'i rami devono essere su entrambi i lati');
+      });
+      it('nessun nodo si sovrappone a un altro', function () {
+        assert.equal(firstOverlap(L.balanced(bigMap('balanced'))), null, 'nodi sovrapposti');
+      });
+      it('funziona con sola radice e un solo figlio', function () {
+        var solo = L.balanced(M.createMap('Solo'));
+        assert.equal(solo.nodes[solo.rootId].x, 0);
+        assert.equal(solo.nodes[solo.rootId].y, 0);
+        var m = M.createMap('Uno');
+        m = M.addChild(m, m.rootId, 'Figlio').map;
+        assert.equal(firstOverlap(L.balanced(m)), null);
+      });
+    });
+
+    describe('org', function () {
+      it('dispone i livelli dall\'alto verso il basso con radice a (0,0)', function () {
+        var map = L.org(bigMap('org'));
+        assert.equal(map.nodes[map.rootId].x, 0);
+        assert.equal(map.nodes[map.rootId].y, 0);
+        Object.keys(map.nodes).forEach(function (id) {
+          var n = map.nodes[id];
+          if (n.parentId !== null) assert.ok(n.y > map.nodes[n.parentId].y);
+        });
+      });
+      it('nessun nodo si sovrappone a un altro', function () {
+        assert.equal(firstOverlap(L.org(bigMap('org'))), null, 'nodi sovrapposti');
+      });
+    });
+
+    describe('timeline', function () {
+      it('dispone le tappe da sinistra a destra alternandole sopra e sotto l\'asse', function () {
+        var map = L.timeline(bigMap('timeline'));
+        assert.equal(map.nodes[map.rootId].x, 0);
+        assert.equal(map.nodes[map.rootId].y, 0);
+        var kids = map.nodes[map.rootId].children;
+        for (var i = 0; i < kids.length; i++) {
+          var n = map.nodes[kids[i]];
+          assert.ok(n.x > 0);
+          if (i % 2 === 0) assert.ok(n.y < 0, 'tappa pari sopra l\'asse');
+          else assert.ok(n.y > 0, 'tappa dispari sotto l\'asse');
+          if (i > 0) assert.ok(n.x > map.nodes[kids[i - 1]].x);
+        }
+      });
+      it('nessun nodo si sovrappone a un altro', function () {
+        assert.equal(firstOverlap(L.timeline(bigMap('timeline'))), null, 'nodi sovrapposti');
+      });
+    });
+
+    describe('fishbone', function () {
+      it('alterna lische sopra e sotto l\'asse con radice a (0,0)', function () {
+        var map = L.fishbone(bigMap('fishbone'));
+        assert.equal(map.nodes[map.rootId].x, 0);
+        assert.equal(map.nodes[map.rootId].y, 0);
+        var kids = map.nodes[map.rootId].children;
+        for (var i = 0; i < kids.length; i++) {
+          var n = map.nodes[kids[i]];
+          assert.ok(n.x > 0);
+          if (i % 2 === 0) assert.ok(n.y < 0);
+          else assert.ok(n.y > 0);
+        }
+      });
+      it('nessun nodo si sovrappone a un altro', function () {
+        assert.equal(firstOverlap(L.fishbone(bigMap('fishbone'))), null, 'nodi sovrapposti');
+      });
+    });
+
+    describe('outline', function () {
+      it('dispone i nodi in elenco verticale indentato con radice a (0,0)', function () {
+        var map = L.outline(bigMap('outline'));
+        assert.equal(map.nodes[map.rootId].x, 0);
+        assert.equal(map.nodes[map.rootId].y, 0);
+        Object.keys(map.nodes).forEach(function (id) {
+          var n = map.nodes[id];
+          if (n.parentId !== null) {
+            assert.ok(n.y > map.nodes[n.parentId].y);
+          }
+        });
+      });
+      it('nessun nodo si sovrappone a un altro', function () {
+        assert.equal(firstOverlap(L.outline(bigMap('outline'))), null, 'nodi sovrapposti');
+      });
+    });
+
+    describe('compare', function () {
+      function compareMap() {
+        var map = M.createMap('Confronto concetti');
+        map.settings.layout = 'compare';
+        var subLayouts = ['radial', 'tree', 'timeline'];
+        for (var i = 0; i < subLayouts.length; i++) {
+          var r = M.addChild(map, map.rootId, 'Centro ' + (i + 1) + ' (' + subLayouts[i] + ')');
+          map = r.map;
+          map.nodes[r.nodeId].subLayout = subLayouts[i];
+          for (var j = 0; j < 3; j++) {
+            var c = M.addChild(map, r.nodeId, 'Ramo ' + (i + 1) + '.' + (j + 1));
+            map = c.map;
+            if (j === 0) map = M.addChild(map, c.nodeId, 'Dettaglio del ramo ' + (i + 1)).map;
+          }
+        }
+        return map;
+      }
+
+      it('dispone più nodi centrali con subLayout diversi senza sovrapposizioni', function () {
+        var laid = L.compare(compareMap());
+        assert.equal(laid.nodes[laid.rootId].x, 0);
+        assert.equal(laid.nodes[laid.rootId].y, 0);
+        assert.equal(firstOverlap(laid), null, 'nodi sovrapposti');
+        var centers = laid.nodes[laid.rootId].children;
+        assert.ok(laid.nodes[centers[0]].x < laid.nodes[centers[1]].x);
+        assert.ok(laid.nodes[centers[1]].x < laid.nodes[centers[2]].x);
+      });
+
+      it('apply sceglie compare e gestisce il fallback su subLayout compare', function () {
+        var map = compareMap();
+        assert.equal(JSON.stringify(L.apply(map)), JSON.stringify(L.compare(map)));
+        var firstCenter = map.nodes[map.rootId].children[0];
+        map.nodes[firstCenter].subLayout = 'compare';
+        assert.equal(firstOverlap(L.compare(map)), null, 'nodi sovrapposti con fallback');
+      });
+
+      it('funziona con la sola radice', function () {
+        var solo = L.compare(M.createMap('Solo'));
+        assert.equal(solo.nodes[solo.rootId].x, 0);
+        assert.equal(solo.nodes[solo.rootId].y, 0);
+      });
+    });
+
     describe('apply / nodi compressi / getBounds', function () {
       it('apply sceglie l\'algoritmo dalle impostazioni', function () {
-        var map = bigMap('tree');
-        assert.equal(JSON.stringify(L.apply(map)), JSON.stringify(L.tree(map)));
-        map.settings.layout = 'radial';
-        assert.equal(JSON.stringify(L.apply(map)), JSON.stringify(L.radial(map)));
+        var modes = [
+          ['tree', L.tree],
+          ['radial', L.radial],
+          ['balanced', L.balanced],
+          ['org', L.org],
+          ['timeline', L.timeline],
+          ['fishbone', L.fishbone],
+          ['outline', L.outline],
+          ['compare', L.compare]
+        ];
+        modes.forEach(function (entry) {
+          var map = bigMap(entry[0]);
+          assert.equal(JSON.stringify(L.apply(map)), JSON.stringify(entry[1](map)), 'layout ' + entry[0]);
+        });
       });
       it('i nodi compressi non occupano spazio', function () {
         var map = bigMap('tree');

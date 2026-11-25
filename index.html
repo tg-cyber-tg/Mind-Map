@@ -112,6 +112,7 @@
         <span id="sync-ico" class="ico" data-icon="cloud" aria-hidden="true"></span>
         <span id="sync-label">Locale</span>
       </button>
+      <span id="cowork-badge" class="cowork-badge" role="button" tabindex="0" data-action="sync" title="Mappa condivisa in tempo reale" hidden></span>
       <button type="button" id="btn-toggle-props" data-action="toggle-properties" aria-pressed="true" title="Mostra o nascondi il pannello Proprietà" aria-label="Proprietà">
         <span class="ico" data-icon="panel-right" aria-hidden="true"></span>
       </button>
@@ -126,6 +127,8 @@
         <g id="world"></g>
       </svg>
 
+      <div id="map-tabs" class="map-tabs" role="tablist" aria-label="Mappe aperte"></div>
+
       <div class="floating-controls" role="toolbar" aria-label="Vista e disposizione">
         <div class="menu">
           <button type="button" data-menu="menu-layout" aria-haspopup="true" aria-expanded="false" title="Disposizione automatica">
@@ -137,14 +140,37 @@
             <button type="button" role="menuitemradio" data-action="layout-radial" aria-checked="false">
               <span class="ico" data-icon="layout-radial" aria-hidden="true"></span><span>Mappa mentale (a raggiera)</span>
             </button>
+            <button type="button" role="menuitemradio" data-action="layout-balanced" aria-checked="false">
+              <span class="ico" data-icon="layout-balanced" aria-hidden="true"></span><span>Mappa bilanciata</span>
+            </button>
             <button type="button" role="menuitemradio" data-action="layout-tree" aria-checked="false">
               <span class="ico" data-icon="layout-tree" aria-hidden="true"></span><span>Schema ad albero</span>
             </button>
+            <button type="button" role="menuitemradio" data-action="layout-org" aria-checked="false">
+              <span class="ico" data-icon="layout-org" aria-hidden="true"></span><span>Organigramma</span>
+            </button>
+            <button type="button" role="menuitemradio" data-action="layout-timeline" aria-checked="false">
+              <span class="ico" data-icon="layout-timeline" aria-hidden="true"></span><span>Linea del tempo</span>
+            </button>
+            <button type="button" role="menuitemradio" data-action="layout-fishbone" aria-checked="false">
+              <span class="ico" data-icon="layout-fishbone" aria-hidden="true"></span><span>Lisca di pesce</span>
+            </button>
+            <button type="button" role="menuitemradio" data-action="layout-outline" aria-checked="false">
+              <span class="ico" data-icon="layout-outline" aria-hidden="true"></span><span>Elenco verticale</span>
+            </button>
+            <button type="button" role="menuitemradio" data-action="layout-compare" aria-checked="false">
+              <span class="ico" data-icon="layout-compare" aria-hidden="true"></span><span>Confronto (più nodi centrali)</span>
+            </button>
+            <hr>
             <button type="button" role="menuitem" data-action="riordina">
               <span class="ico" data-icon="sparkles" aria-hidden="true"></span><span>Riordina i nodi</span>
             </button>
           </div>
         </div>
+        <button type="button" id="btn-add-center" class="compare-add-btn" data-action="aggiungi-centro" title="Aggiungi un altro nodo centrale al confronto" hidden>
+          <span class="ico" data-icon="plus" data-icon-size="16" aria-hidden="true"></span>
+          <span>Nodo centrale</span>
+        </button>
         <span class="floating-sep" aria-hidden="true"></span>
         <button type="button" data-action="zoom-meno" title="Rimpicciolisci (−)" aria-label="Rimpicciolisci">
           <span class="ico" data-icon="minus" data-icon-size="16" aria-hidden="true"></span>
@@ -157,6 +183,8 @@
         <button type="button" data-action="adatta" title="Adatta allo schermo (Ctrl/Cmd+0)">
           <span class="ico" data-icon="maximize" data-icon-size="16" aria-hidden="true"></span><span>Adatta</span>
         </button>
+        <span class="floating-sep" aria-hidden="true"></span>
+        <span id="node-count" class="node-count" title="Totale caselle nella mappa">1 nodo</span>
       </div>
     </div>
 
@@ -264,6 +292,64 @@
           <span class="ico" data-icon="logout" data-icon-size="16" aria-hidden="true"></span> Esci
         </button>
       </div>
+
+      <div id="sync-cowork-section" class="cowork-section">
+        <h3 class="cowork-title"><span class="ico" data-icon="link" data-icon-size="16" aria-hidden="true"></span> Coworking (lavora in gruppo in tempo reale)</h3>
+        <div id="cowork-inactive">
+          <p class="dialog-hint">Condividi la mappa aperta per modificarla insieme in diretta, oppure inserisci un codice ricevuto.</p>
+          <button type="button" id="btn-cowork-share" class="btn-primary btn-full">
+            <span class="ico" data-icon="link" data-icon-size="16" aria-hidden="true"></span> Condividi questa mappa
+          </button>
+          <div class="cowork-join-row">
+            <input type="text" id="cowork-join-input" placeholder="Codice o link di invito" aria-label="Codice o link di invito" autocomplete="off" spellcheck="false">
+            <button type="button" id="btn-cowork-join">Unisciti</button>
+          </div>
+        </div>
+        <div id="cowork-active" hidden>
+          <div class="cowork-code-box">
+            <span class="cowork-code-label">Codice sessione <span id="cowork-my-role" class="cowork-role-pill"></span></span>
+            <strong id="cowork-code-display" class="cowork-code"></strong>
+          </div>
+
+          <div id="cowork-admin-panel" class="cowork-admin-panel" hidden>
+            <div class="cowork-invite-row">
+              <input type="email" id="cowork-invite-email" placeholder="Invita via email (es. anna@mail.it)" aria-label="Email da invitare">
+              <select id="cowork-invite-role" aria-label="Ruolo invitato">
+                <option value="editor">Editor</option>
+                <option value="viewer">Lettore</option>
+              </select>
+              <button type="button" id="btn-cowork-invite" class="btn-primary">Invita</button>
+            </div>
+            <div class="cowork-default-role-row">
+              <label for="cowork-default-role">Chi entra col link è:</label>
+              <select id="cowork-default-role">
+                <option value="editor">Editor (può modificare)</option>
+                <option value="viewer">Lettore (solo lettura)</option>
+              </select>
+            </div>
+            <div id="cowork-invites-block" class="cowork-members-block" hidden>
+              <span class="cowork-peers-label">Permessi e invitati</span>
+              <ul id="cowork-members-list" class="cowork-members-list"></ul>
+            </div>
+          </div>
+
+          <div class="cowork-peers-block">
+            <span class="cowork-peers-label">Collaboratori online</span>
+            <ul id="cowork-peers-list" class="cowork-peers"></ul>
+          </div>
+          <div class="sync-btn-row">
+            <button type="button" id="btn-cowork-copy">
+              <span class="ico" data-icon="copy" data-icon-size="16" aria-hidden="true"></span> Copia link
+            </button>
+            <button type="button" id="btn-cowork-leave">
+              <span class="ico" data-icon="logout" data-icon-size="16" aria-hidden="true"></span> Esci
+            </button>
+            <button type="button" id="btn-cowork-delete" class="danger" hidden>
+              <span class="ico" data-icon="trash" data-icon-size="16" aria-hidden="true"></span> Elimina condivisa
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <details id="sync-config-details" class="sync-config-details">
@@ -299,9 +385,11 @@
           <li><b>Clic</b> su un nodo: lo selezioni</li>
           <li><b>Doppio clic</b> su un nodo: modifichi il testo</li>
           <li><b>Doppio clic</b> sullo sfondo: nuova idea</li>
-          <li><b>Trascina</b> un nodo: lo sposti (con il suo ramo)</li>
-          <li><b>⌥ Alt + trascina</b> su un altro nodo: cambi il “genitore”</li>
-          <li><b>Trascina</b> lo sfondo: sposti la mappa</li>
+          <li><b>Tasto destro</b> su un nodo: menu rapido (Taglia, Copia, Incolla, Graffa, Commento)</li>
+          <li><b>Trascina sullo sfondo</b> (tasto sinistro): rettangolo per selezionare più nodi</li>
+          <li><b>Trascina</b> un nodo: lo sposti liberamente (con il suo ramo)</li>
+          <li><b>Lucchetto aperto</b> (o <b>⌥ Alt + trascina</b>): sposti il nodo sotto un altro genitore</li>
+          <li><b>Due dita</b> sul trackpad o <b>Spazio + trascina</b>: sposti la vista della mappa</li>
           <li><b>Rotella</b> o <b>pizzico</b>: zoom</li>
           <li>Clic sul pallino <b>+N</b>: apri un ramo compresso</li>
         </ul>
@@ -326,6 +414,27 @@
         </table>
       </section>
     </div>
+    <section class="help-guide">
+      <h3><span class="ico" data-icon="sparkles" data-icon-size="18" aria-hidden="true"></span> Guida rapida: come usarla al meglio</h3>
+      <div class="help-tips">
+        <div>
+          <h4>1. Scegli il layout giusto</h4>
+          <p>Dalla barra in basso cambia vista in qualsiasi momento: <b>Raggiera</b> o <b>Bilanciata</b> per studiare e raccogliere idee, <b>Linea del tempo</b> per eventi in ordine cronologico, <b>Organigramma</b> per ruoli (con opzione <i>Scheda persona</i> e foto profilo circolare), <b>Lisca di pesce</b> per cause ed effetti, <b>Elenco</b> per schemi ordinati e <b>Confronto</b> per affiancare più nodi centrali ognuno col proprio layout.</p>
+        </div>
+        <div>
+          <h4>2. Riorganizza e raggruppa</h4>
+          <p>Il <b>lucchetto</b> sul nodo selezionato ti protegge dagli spostamenti accidentali: chiuso sposti il nodo liberamente, aperto lo attacchi a un altro genitore. Con il <b>tasto destro</b> puoi tagliare, copiare e incollare interi rami. Trascina il rettangolo col tasto sinistro per selezionare più argomenti e unirli con una <b>parentesi graffa</b> (a cui puoi aggiungere anche nodi figli).</p>
+        </div>
+        <div>
+          <h4>3. Personalizza ogni casella</h4>
+          <p>Nel pannello <b>Proprietà</b> puoi cambiare font (25 caratteri), grandezza, punti elenco, allineamento, colore del bordo e <b>riempimento pastello</b> separato, forma (anche <b>Cerchio</b>), aggiungere <b>più immagini</b> (trascinandole o con ⌘V), evidenziare un nodo con un <b>commento giallo</b> e curvare a mano le frecce dei collegamenti.</p>
+        </div>
+        <div>
+          <h4>4. Lavora su più mappe</h4>
+          <p>Usa la barra delle <b>schede in basso a sinistra</b> (come su Excel) per tenere più mappe aperte insieme e passare dall'una all'altra con un clic. In <b>Accessibilità</b> puoi attivare il tema <b>Automatico</b> (segue Mac/iPad), il carattere ad alta leggibilità e la lettura vocale in italiano.</p>
+        </div>
+      </div>
+    </section>
     <p class="dialog-hint">Il lavoro viene salvato da solo mentre scrivi, in questo browser. Per avere le stesse mappe su Mac e iPad attiva la Sincronizzazione dalla barra in alto, oppure usa Esporta → File mappa e poi Importa.</p>
     <section class="help-app">
       <h3><span class="ico" data-icon="smartphone" data-icon-size="18" aria-hidden="true"></span> Usala come app</h3>

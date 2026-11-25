@@ -83,6 +83,7 @@
     }
     map.settings = settings;
     if (!Array.isArray(map.links)) map.links = [];
+    if (!Array.isArray(map.summaries)) map.summaries = [];
     if (typeof map.title !== 'string') {
       var rootNode = map.nodes && map.nodes[map.rootId];
       map.title = rootNode && typeof rootNode.text === 'string' ? rootNode.text : 'Mappa senza titolo';

@@ -114,6 +114,44 @@ service cloud.firestore {
     match /users/{userId}/maps/{mapId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /sharedMaps/{shareId} {
+      // Solo 'get' (serve il codice esatto): impedisce di elencare tutte le mappe del DB.
+      allow get: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow update: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid ||
+        (
+          resource.data.roles[request.auth.uid] == 'editor' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'updatedAt', 'updatedBy', 'data'])
+        ) ||
+        (
+          !(request.auth.uid in resource.data.members) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'roles', 'memberEmails']) &&
+          request.resource.data.members.hasAll(resource.data.members) &&
+          request.resource.data.members.size() == resource.data.members.size() + 1 &&
+          request.auth.uid in request.resource.data.members &&
+          request.resource.data.roles.diff(resource.data.roles).affectedKeys().hasOnly([request.auth.uid]) &&
+          request.resource.data.memberEmails.diff(resource.data.memberEmails).affectedKeys().hasOnly([request.auth.uid]) &&
+          (
+            request.resource.data.roles[request.auth.uid] == 'viewer' ||
+            (
+              request.resource.data.roles[request.auth.uid] == 'editor' &&
+              (
+                resource.data.defaultRole != 'viewer' ||
+                (request.auth.token.email != null && {'email': request.auth.token.email.lower(), 'role': 'editor'} in resource.data.invites)
+              )
+            )
+          )
+        )
+      );
+
+      match /presence/{uid} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
   }
 }
 ```
